@@ -1,5 +1,5 @@
 {
-  "name": "nuxt-app",
+  "name": "link-shortener",
   "private": true,
   "type": "module",
   "scripts": {
