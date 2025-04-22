@@ -20,6 +20,9 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Install npm dependencies (creates node_modules)
+        run: deno install
+
       - name: Prepare Nuxt (run nuxt prepare)
         run: deno run -A npm:nuxt prepare
 
