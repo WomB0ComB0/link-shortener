@@ -20,8 +20,8 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Prepare Nuxt (run postinstall)
-        run: deno task postinstall
+      - name: Prepare Nuxt (run nuxt prepare)
+        run: deno run -A npm:nuxt prepare
 
       - name: Ensure NuxtHub module is installed
         run: deno run -A npm:nuxthub@latest ensure
