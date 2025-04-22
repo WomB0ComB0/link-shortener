@@ -21,13 +21,13 @@ jobs:
           deno-version: v1.x
 
       - name: Install dependencies
-        run: deno task -A install
+        run: deno task install
 
       - name: Ensure NuxtHub module is installed
         run: deno run -A npm:nuxthub@latest ensure
 
       - name: Build application
-        run: deno task -A build
+        run: deno task build
 
       - name: Deploy to NuxtHub
         uses: nuxt-hub/action@v1
