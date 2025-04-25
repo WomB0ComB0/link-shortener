@@ -1,37 +1,43 @@
-import type React from 'react';
+import type { DefineComponent } from 'vue';
 
 declare module '*.png' {
-  export const ReactComponent: React.FC<React.ImgHTMLAttributes<HTMLImageElement>>;
+  const component: DefineComponent<{}, {}, any>;
+  export const VueComponent: DefineComponent<{}, {}, any>;
   const content: string;
   export default content;
 }
 
 declare module '*.webp' {
-  export const ReactComponent: React.FC<React.ImgHTMLAttributes<HTMLImageElement>>;
+  const component: DefineComponent<{}, {}, any>;
+  export const VueComponent: DefineComponent<{}, {}, any>;
   const content: string;
   export default content;
 }
 
 declare module '*.jpg' {
-  export const ReactComponent: React.FC<React.ImgHTMLAttributes<HTMLImageElement>>;
+  const component: DefineComponent<{}, {}, any>;
+  export const VueComponent: DefineComponent<{}, {}, any>;
   const content: string;
   export default content;
 }
 
 declare module '*.svg' {
-  export const ReactComponent: React.FC<React.SVGProps<SVGSVGElement>>;
+  const component: DefineComponent<{}, {}, any>;
+  export const VueComponent: DefineComponent<{}, {}, any>;
   const src: string;
   export default src;
 }
 
 declare module '*.mp4' {
-  export const ReactComponent: React.FC<React.VideoHTMLAttributes<HTMLVideoElement>>;
+  const component: DefineComponent<{}, {}, any>;
+  export const VueComponent: DefineComponent<{}, {}, any>;
   const src: string;
   export default src;
 }
 
 declare module '*.mp3' {
-  export const ReactComponent: React.FC<React.AudioHTMLAttributes<HTMLAudioElement>>;
+  const component: DefineComponent<{}, {}, any>;
+  export const VueComponent: DefineComponent<{}, {}, any>;
   const src: string;
   export default src;
 }
