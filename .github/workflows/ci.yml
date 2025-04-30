@@ -1,0 +1,62 @@
+name: Nuxt Link Shortener CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '23'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Type check
+        run: npx nuxt typecheck
+      
+      # Run tests with vitest if any test files exist
+      - name: Check for test files
+        id: check-tests
+        run: |
+          if find . -type f -name "*.test.ts" -o -name "*.test.js" -o -name "*.spec.ts" -o -name "*.spec.js" | grep -q .; then
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Run tests with vitest
+        if: steps.check-tests.outputs.has_tests == 'true'
+        run: npx vitest run
+      
+      # Build validation
+      - name: Build application
+        run: npm run build
+      
+      # Setup Deno for additional checks
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      
+      # Format check with Deno
+      - name: Check formatting
+        run: deno fmt --check
+      
+      # Lint with Deno
+      - name: Lint code
+        run: deno lint
+      
+      # Uncomment if you have linting configured
+      # - name: Lint with npm
+      #   run: npm run lint 

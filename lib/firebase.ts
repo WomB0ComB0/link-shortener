@@ -1,12 +1,15 @@
 import { getAuth } from 'firebase-admin/auth';
-import { Logger } from '.nuxt/imports.js';
 import { initializeApp } from 'firebase-admin/app';
 import { getDataConnect } from 'firebase-admin/data-connect';
+import { Logger } from '.nuxt/imports.js';
 
 import type { NuxtApp } from 'node_modules/nuxt/dist/app/nuxt.js';
 
 export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
+  const logger = Logger.getLogger('Firebase');
   const config = useRuntimeConfig();
+
+  logger.debug('Initializing Firebase plugin');
 
   const firebaseConfig = {
     apiKey: config.public.FB_API_KEY,
@@ -18,24 +21,32 @@ export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
     measurementId: config.public.FB_MEASUREMENT_ID
   };
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const dataConnect = getDataConnect({
-    serviceId: 'serviceId',
-    location: 'us-west2'
-  });
+  try {
+    logger.info('Configuring Firebase app');
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const dataConnect = getDataConnect({
+      serviceId: 'serviceId',
+      location: 'us-west2'
+    });
 
-  nuxtApp.vueApp.provide('auth', auth);
-  nuxtApp.provide('auth', auth);
+    logger.debug('Providing Firebase services to Nuxt app');
+    nuxtApp.vueApp.provide('auth', auth);
+    nuxtApp.provide('auth', auth);
 
-  nuxtApp.vueApp.provide('dataConnect', dataConnect);
-  nuxtApp.provide('dataConnect', dataConnect);
+    nuxtApp.vueApp.provide('dataConnect', dataConnect);
+    nuxtApp.provide('dataConnect', dataConnect);
 
+    logger.success('Firebase initialization complete');
 
-  return {
-    provide: {
-      auth,
-      dataConnect
-    }
-  };
+    return {
+      provide: {
+        auth,
+        dataConnect
+      }
+    };
+  } catch (error) {
+    logger.error('Failed to initialize Firebase', error);
+    throw error;
+  }
 });

@@ -1,11 +1,16 @@
-import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import vue from '@vitejs/plugin-vue';
+import vueJsx from '@vitejs/plugin-vue-jsx';
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  test: {
-    environment: 'jsdom',
-    exclude: ['src/e2e/**', 'node_modules'],
-  },
+  plugins: [
+    vue({
+      features: {
+        propsDestructure: true,
+        optionsAPI: true
+      }
+    }),
+    vueJsx()
+  ],
+  test: {}
 });

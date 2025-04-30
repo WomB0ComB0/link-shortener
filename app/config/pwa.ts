@@ -6,6 +6,7 @@ import { app } from '../constants/index.js'
 const scope = '/'
 
 type ExtendedManifest = Omit<ManifestOptions, 'screenshots'> & {
+  
   screenshots?: Array<{
     src: string;
     sizes: string;
@@ -106,7 +107,7 @@ type ExtendedManifest = Omit<ManifestOptions, 'screenshots'> & {
   };
 };
 
-type PWA = ModuleOptions & Omit<VitePWAOptions, 'manifest'> & {
+type PWA = ModuleOptions & Omit<Partial<VitePWAOptions>, 'manifest'> & {
   manifest: ExtendedManifest;
 }
 
@@ -114,6 +115,11 @@ export const pwa: PWA = {
   registerType: 'autoUpdate',
   scope,
   base: scope,
+  includeAssets: ['/assets/svgs/logo.svg'],
+  injectManifest: {
+    globPatterns: ['**/*.{js,css,html,png,svg,ico,json}'],
+    swDest: 'sw.js',
+  },
   manifest: {
     id: scope,
     scope,
@@ -132,14 +138,16 @@ export const pwa: PWA = {
     related_applications: [],
     prefer_related_applications: false,
     categories: [],
+    display_override: ['window-controls-overlay'],
+    shortcuts: [],
     iarc_rating_id: '',
     share_target: {
       action: '/',
       method: 'POST',
       enctype: 'multipart/form-data',
       params: {
-        title: 'Kappa Theta Pi - National',
-        text: 'Kappa Theta Pi (ΚΘΠ, also known as KTP) is a co-ed professional fraternity specializing in the field of information technology.',
+        title: app.name,
+        text: app.description,
         url: '/',
         files: [
           {
@@ -156,7 +164,7 @@ export const pwa: PWA = {
     handle_links: 'preferred',
     scope_extensions: [
       {
-        origin: '*.kappathetapi.org',
+        origin: '*.mikeodnis.dev',
       },
     ],
     edge_side_panel: {
@@ -164,12 +172,8 @@ export const pwa: PWA = {
     },
     protocol_handlers: [
       {
-        protocol: 'web+ktp',
+        protocol: 'web+ls',
         url: '/%s',
-      },
-      {
-        protocol: 'web+rush',
-        url: '/rush/%s',
       },
     ],
     tab_strip: {
