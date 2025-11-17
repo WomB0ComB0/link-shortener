@@ -59,42 +59,42 @@ import { ref } from "vue";
 import { useCopyToClipboard } from "../composables";
 
 defineProps<{
-  link: {
-    id: string;
-    shortUrl: string;
-    originalUrl: string;
-    customAlias?: string | null;
-    createdAt: string | Date;
-  };
+	link: {
+		id: string;
+		shortUrl: string;
+		originalUrl: string;
+		customAlias?: string | null;
+		createdAt: string | Date;
+	};
 }>();
 
 const copied = ref(false);
 const { copyToClipboard } = useCopyToClipboard();
 
 function copyLink(shortUrl: string) {
-  const baseUrl = window?.location?.origin || "http://localhost:3000";
-  const fullUrl = `${baseUrl}/${shortUrl}`;
-  copyToClipboard(fullUrl);
+	const baseUrl = window?.location?.origin || "http://localhost:3000";
+	const fullUrl = `${baseUrl}/${shortUrl}`;
+	copyToClipboard(fullUrl);
 
-  copied.value = true;
-  setTimeout(() => {
-    copied.value = false;
-  }, 2000);
+	copied.value = true;
+	setTimeout(() => {
+		copied.value = false;
+	}, 2000);
 }
 
 function formatDate(date: string | Date): string {
-  const d = new Date(date);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
+	const d = new Date(date);
+	const now = new Date();
+	const diffMs = now.getTime() - d.getTime();
+	const diffMins = Math.floor(diffMs / 60000);
+	const diffHours = Math.floor(diffMs / 3600000);
+	const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
+	if (diffMins < 1) return "Just now";
+	if (diffMins < 60) return `${diffMins}m ago`;
+	if (diffHours < 24) return `${diffHours}h ago`;
+	if (diffDays < 7) return `${diffDays}d ago`;
 
-  return d.toLocaleDateString();
+	return d.toLocaleDateString();
 }
 </script>

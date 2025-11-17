@@ -1,4 +1,3 @@
-export * from "./AuthModal.vue";
-export * from "./LinksGrid.vue";
-export * from "./SecurityVerification.vue";
-export * from "./UserCard.vue";
+export { default as AppHeader } from "./AppHeader.vue";
+export { default as LinkCard } from "./LinkCard.vue";
+export { default as LinksGrid } from "./LinksGrid.vue";

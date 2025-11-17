@@ -6,7 +6,7 @@
         <NuxtLink to="/">
           <UButton
             icon="i-heroicons-home"
-            color="neutral"
+            color="primary"
             variant="soft"
             class="rounded-lg"
           >
@@ -104,8 +104,9 @@
 
 <script lang="ts" setup>
 import { ref } from "vue";
-import AppHeader from "~/components/AppHeader.vue";
+import { useFetcher } from "../composables";
 
+const { post: fetchPost, FetcherError } = useFetcher();
 const router = useRouter();
 const isLogin = ref(true);
 const loading = ref(false);
@@ -129,16 +130,20 @@ async function handleSubmit() {
   try {
     const endpoint = isLogin.value ? "/api/auth/login" : "/api/auth/register";
 
-    const response = await $fetch<{ user: any; token: string }>(endpoint, {
-      method: "POST",
-      body: isLogin.value
+    const response = await fetchPost<{ user: any; token: string }>(
+      endpoint,
+      isLogin.value
         ? { email: form.value.email, password: form.value.password }
         : {
             email: form.value.email,
             password: form.value.password,
             displayName: form.value.displayName || undefined,
           },
-    });
+      {
+        retries: 1,
+        timeout: 10000,
+      },
+    );
 
     // Save token
     if (process.client) {
@@ -147,8 +152,12 @@ async function handleSubmit() {
 
     // Redirect to dashboard
     router.push("/dashboard");
-  } catch (err: any) {
-    error.value = err.data?.message || err.message || "Authentication failed";
+  } catch (err) {
+    if (err instanceof FetcherError) {
+      error.value = String(err.responseData) || err.message || "Authentication failed";
+    } else {
+      error.value = err.message || "Authentication failed";
+    }
   } finally {
     loading.value = false;
   }

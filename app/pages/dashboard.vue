@@ -6,7 +6,7 @@
         <NuxtLink to="/">
           <UButton
             icon="i-heroicons-home"
-            color="gray"
+            color="neutral"
             variant="soft"
             class="rounded-lg"
           >
@@ -26,7 +26,7 @@
         <UButton
           @click="handleLogout"
           variant="ghost"
-          color="gray"
+          color="neutral"
           class="rounded-lg"
           icon="i-heroicons-arrow-left-on-rectangle"
         >
@@ -72,47 +72,57 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from "vue";
-import AppHeader from "~/components/AppHeader.vue";
-import LinksGrid from "~/components/LinksGrid.vue";
+import { ref, onMounted } from "vue";
+import { useFetcher } from "../composables";
 
+const { get: fetchGet } = useFetcher();
+const router = useRouter();
 const authToken = ref<string | null>(null);
 const userLinks = ref<any[]>([]);
-const loading = ref(false);
 
 onMounted(() => {
   if (process.client) {
     const token = localStorage.getItem("auth_token");
-    if (!token) {
-      navigateTo("/");
-      return;
+    if (token) {
+      authToken.value = token;
+      fetchUserLinks();
+    } else {
+      router.push("/auth");
     }
-    authToken.value = token;
-    fetchUserLinks();
   }
 });
 
 async function fetchUserLinks() {
   if (!authToken.value) return;
-  loading.value = true;
 
   try {
-    // TODO: Implement user links endpoint
-    userLinks.value = [];
+    const links = await fetchGet("/api/links/me", {
+      headers: {
+        Authorization: `Bearer ${authToken.value}`,
+      },
+      retries: 2,
+      timeout: 10000,
+    });
+    userLinks.value = Array.isArray(links) ? links : [];
   } catch (err) {
     console.error("Failed to fetch user links:", err);
-  } finally {
-    loading.value = false;
+    handleLogout();
   }
 }
 
 function handleLogout() {
-  localStorage.removeItem("auth_token");
-  navigateTo("/");
+  authToken.value = null;
+  userLinks.value = [];
+
+  if (process.client) {
+    localStorage.removeItem("auth_token");
+  }
+
+  router.push("/");
 }
 
 useSeoMeta({
   title: "Dashboard - LinkShort",
-  description: "Manage your shortened links and analytics",
+  description: "Manage your shortened links",
 });
 </script>
