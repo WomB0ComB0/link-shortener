@@ -6,7 +6,9 @@
 import * as S from "@effect/schema/Schema";
 
 // Effect Schema for phishing check result
-export class PhishingCheckResult extends S.Class<PhishingCheckResult>("PhishingCheckResult")({
+export class PhishingCheckResult extends S.Class<PhishingCheckResult>(
+	"PhishingCheckResult",
+)({
 	isPhishing: S.Boolean,
 	suspicionScore: S.Number, // 0-100, higher = more suspicious
 	url: S.String,
@@ -17,23 +19,66 @@ export class PhishingCheckResult extends S.Class<PhishingCheckResult>("PhishingC
 
 // Common legitimate domains that phishers try to impersonate
 const LEGITIMATE_DOMAINS = [
-	"google", "facebook", "amazon", "apple", "microsoft", "paypal",
-	"netflix", "instagram", "twitter", "linkedin", "github", "dropbox",
-	"yahoo", "outlook", "live", "office", "adobe", "spotify", "ebay",
-	"walmart", "target", "bestbuy", "chase", "bankofamerica", "wellsfargo",
+	"google",
+	"facebook",
+	"amazon",
+	"apple",
+	"microsoft",
+	"paypal",
+	"netflix",
+	"instagram",
+	"twitter",
+	"linkedin",
+	"github",
+	"dropbox",
+	"yahoo",
+	"outlook",
+	"live",
+	"office",
+	"adobe",
+	"spotify",
+	"ebay",
+	"walmart",
+	"target",
+	"bestbuy",
+	"chase",
+	"bankofamerica",
+	"wellsfargo",
 ];
 
 // Suspicious TLDs commonly used in phishing
 const SUSPICIOUS_TLDS = [
-	".tk", ".ml", ".ga", ".cf", ".gq", // Free domains
-	".zip", ".mov", ".exe", // Confusing extensions
+	".tk",
+	".ml",
+	".ga",
+	".cf",
+	".gq", // Free domains
+	".zip",
+	".mov",
+	".exe", // Confusing extensions
 ];
 
 // Keywords commonly found in phishing URLs
 const PHISHING_KEYWORDS = [
-	"verify", "account", "update", "confirm", "login", "signin", "secure",
-	"banking", "suspended", "locked", "unusual", "activity", "validate",
-	"restore", "recover", "wallet", "payment", "billing", "invoice",
+	"verify",
+	"account",
+	"update",
+	"confirm",
+	"login",
+	"signin",
+	"secure",
+	"banking",
+	"suspended",
+	"locked",
+	"unusual",
+	"activity",
+	"validate",
+	"restore",
+	"recover",
+	"wallet",
+	"payment",
+	"billing",
+	"invoice",
 ];
 
 /**
@@ -49,13 +94,15 @@ function parseDomain(hostname: string): { domain: string; subdomain: string } {
 /**
  * Detect potential phishing attempts using multiple heuristics
  */
-export async function detectPhishing(url: string): Promise<PhishingCheckResult> {
+export async function detectPhishing(
+	url: string,
+): Promise<PhishingCheckResult> {
 	const reasons: string[] = [];
 	const warnings: string[] = [];
 	let suspicionScore = 0;
 
 	const urlLower = url.toLowerCase();
-	
+
 	let parsedUrl: URL;
 	try {
 		parsedUrl = new URL(url);
@@ -76,14 +123,20 @@ export async function detectPhishing(url: string): Promise<PhishingCheckResult> 
 	// Check 1: Homograph attacks (Unicode lookalikes)
 	if (/[^\x00-\x7F]/.test(hostname)) {
 		suspicionScore += 30;
-		reasons.push("Domain contains non-ASCII characters (possible homograph attack)");
+		reasons.push(
+			"Domain contains non-ASCII characters (possible homograph attack)",
+		);
 	}
 
 	// Check 2: Multiple suspicious keywords
-	const foundKeywords = PHISHING_KEYWORDS.filter(keyword => urlLower.includes(keyword));
+	const foundKeywords = PHISHING_KEYWORDS.filter((keyword) =>
+		urlLower.includes(keyword),
+	);
 	if (foundKeywords.length >= 2) {
 		suspicionScore += 25;
-		reasons.push(`Contains multiple phishing keywords: ${foundKeywords.join(", ")}`);
+		reasons.push(
+			`Contains multiple phishing keywords: ${foundKeywords.join(", ")}`,
+		);
 	} else if (foundKeywords.length === 1) {
 		suspicionScore += 10;
 		warnings.push(`Contains phishing keyword: ${foundKeywords[0]}`);
@@ -95,7 +148,9 @@ export async function detectPhishing(url: string): Promise<PhishingCheckResult> 
 			const similarity = calculateSimilarity(domain, `${legit}.com`);
 			if (similarity > 0.7) {
 				suspicionScore += 35;
-				reasons.push(`Domain closely resembles legitimate brand: ${legit} (similarity: ${(similarity * 100).toFixed(0)}%)`);
+				reasons.push(
+					`Domain closely resembles legitimate brand: ${legit} (similarity: ${(similarity * 100).toFixed(0)}%)`,
+				);
 			}
 		}
 
@@ -108,7 +163,7 @@ export async function detectPhishing(url: string): Promise<PhishingCheckResult> 
 
 	// Check 4: Suspicious TLD
 	const tld = domain.split(".").pop() || "";
-	if (SUSPICIOUS_TLDS.some(suspicious => `.${tld}` === suspicious)) {
+	if (SUSPICIOUS_TLDS.some((suspicious) => `.${tld}` === suspicious)) {
 		suspicionScore += 20;
 		reasons.push(`Uses suspicious TLD: .${tld}`);
 	}
@@ -154,10 +209,17 @@ export async function detectPhishing(url: string): Promise<PhishingCheckResult> 
 
 	// Check 11: Shortened URL redirect patterns
 	const shortenerPatterns = [
-		"bit.ly", "tinyurl", "goo.gl", "ow.ly", "t.co",
-		"short.link", "tiny.cc", "cutt.ly", "rebrand.ly",
+		"bit.ly",
+		"tinyurl",
+		"goo.gl",
+		"ow.ly",
+		"t.co",
+		"short.link",
+		"tiny.cc",
+		"cutt.ly",
+		"rebrand.ly",
 	];
-	if (shortenerPatterns.some(pattern => hostname.includes(pattern))) {
+	if (shortenerPatterns.some((pattern) => hostname.includes(pattern))) {
 		suspicionScore += 5;
 		warnings.push("URL uses a URL shortener (destination unknown)");
 	}
@@ -215,7 +277,7 @@ function levenshteinDistance(str1: string, str2: string): number {
 				matrix[i][j] = Math.min(
 					matrix[i - 1][j - 1] + 1, // substitution
 					matrix[i][j - 1] + 1, // insertion
-					matrix[i - 1][j] + 1 // deletion
+					matrix[i - 1][j] + 1, // deletion
 				);
 			}
 		}

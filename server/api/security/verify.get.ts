@@ -3,7 +3,7 @@
  * Allows users to check URL security before creating a short link
  */
 
-import { defineEventHandler, getQuery, createError } from "h3";
+import { createError, defineEventHandler, getQuery } from "h3";
 import { verifyLink } from "../../../server/security/verification-pipeline";
 
 export default defineEventHandler(async (event) => {

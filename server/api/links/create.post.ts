@@ -14,18 +14,25 @@
  * limitations under the License.
  */
 
-import { defineEventHandler, readBody, createError } from "h3";
+import { createError, defineEventHandler, readBody } from "h3";
+import {
+	CREATE_SHORT_LINK,
+	GET_SHORT_LINK_BY_ALIAS,
+	GET_SHORT_LINK_BY_URL,
+} from "../../../lib/graphql/operations";
 import {
 	CreateShortLinkRequest,
 	CreateShortLinkResponse,
 	encodeSync,
 } from "../../../server/schemas/index";
+import {
+	type LinkVerificationResult,
+	verifyLink,
+} from "../../../server/security/verification-pipeline";
+import { getUserIdFromHeaders } from "../../../server/utils/auth";
+import { executeMutation, executeQuery } from "../../../server/utils/graphql";
 import { generateShortCode } from "../../../server/utils/helpers";
 import { validateAsync } from "../../../server/utils/validation";
-import { executeQuery, executeMutation } from "../../../server/utils/graphql";
-import { GET_SHORT_LINK_BY_URL, GET_SHORT_LINK_BY_ALIAS, CREATE_SHORT_LINK } from "../../../lib/graphql/operations";
-import { getUserIdFromHeaders } from "../../../server/utils/auth";
-import { verifyLink, type LinkVerificationResult } from "../../../server/security/verification-pipeline";
 
 export default defineEventHandler(async (event) => {
 	// Try to get authenticated user ID from token
@@ -49,16 +56,22 @@ export default defineEventHandler(async (event) => {
 	// ============================================
 	// SECURITY VERIFICATION PIPELINE
 	// ============================================
-	
-	const skipVerification = event.node.req.headers["x-skip-verification"] === "true";
-	const isAdmin = event.node.req.headers["x-admin-bypass"] === process.env.ADMIN_BYPASS_SECRET;
-	
+
+	const skipVerification =
+		event.node.req.headers["x-skip-verification"] === "true";
+	const isAdmin =
+		event.node.req.headers["x-admin-bypass"] ===
+		process.env.ADMIN_BYPASS_SECRET;
+
 	if (!skipVerification && !isAdmin) {
 		try {
-			const verification: LinkVerificationResult = await verifyLink(originalUrl, {
-				skipCache: false,
-				timeout: 10000,
-			});
+			const verification: LinkVerificationResult = await verifyLink(
+				originalUrl,
+				{
+					skipCache: false,
+					timeout: 10000,
+				},
+			);
 
 			// Store verification result in request context for later use
 			event.context.verification = verification;
@@ -68,7 +81,9 @@ export default defineEventHandler(async (event) => {
 				throw createError({
 					statusCode: 403,
 					statusMessage: "Security Violation",
-					message: "URL failed security verification: " + verification.summary.criticalIssues.join(", "),
+					message:
+						"URL failed security verification: " +
+						verification.summary.criticalIssues.join(", "),
 					data: {
 						verification,
 					},
@@ -81,13 +96,14 @@ export default defineEventHandler(async (event) => {
 					riskScore: verification.riskScore,
 					criticalIssues: verification.summary.criticalIssues,
 				});
-				
+
 				// For non-authenticated users, block high-risk URLs
 				if (!authenticatedUserId) {
 					throw createError({
 						statusCode: 403,
 						statusMessage: "Security Warning",
-						message: "URL has high security risk. Please sign in to proceed with caution.",
+						message:
+							"URL has high security risk. Please sign in to proceed with caution.",
 						data: {
 							verification,
 						},
@@ -102,13 +118,12 @@ export default defineEventHandler(async (event) => {
 					warnings: verification.summary.recommendations,
 				});
 			}
-
 		} catch (verificationError: any) {
 			// If verification itself fails, log but don't block (fail open)
 			if (verificationError.statusCode) {
 				throw verificationError; // Re-throw our own errors
 			}
-			
+
 			console.error("Verification pipeline error:", verificationError);
 			// Continue with link creation but log the error
 		}
@@ -122,10 +137,9 @@ export default defineEventHandler(async (event) => {
 	const shortUrl = customAlias || generateShortCode();
 
 	// Check if short URL already exists
-	const { data: existingByUrl, error: urlError } = await executeQuery<{ short_links: any[] }>(
-		GET_SHORT_LINK_BY_URL,
-		{ shortUrl }
-	);
+	const { data: existingByUrl, error: urlError } = await executeQuery<{
+		short_links: any[];
+	}>(GET_SHORT_LINK_BY_URL, { shortUrl });
 
 	if (urlError) {
 		throw createError({
@@ -139,7 +153,7 @@ export default defineEventHandler(async (event) => {
 		throw createError({
 			statusCode: 409,
 			statusMessage: "Conflict",
-			message: customAlias 
+			message: customAlias
 				? `The custom alias "${customAlias}" is already taken. Please choose a different one.`
 				: "Generated code collision. Please try again.",
 		});
@@ -147,10 +161,9 @@ export default defineEventHandler(async (event) => {
 
 	// If custom alias provided, also check it doesn't exist
 	if (customAlias) {
-		const { data: existingByAlias, error: aliasError } = await executeQuery<{ short_links: any[] }>(
-			GET_SHORT_LINK_BY_ALIAS,
-			{ customAlias }
-		);
+		const { data: existingByAlias, error: aliasError } = await executeQuery<{
+			short_links: any[];
+		}>(GET_SHORT_LINK_BY_ALIAS, { customAlias });
 
 		if (aliasError) {
 			throw createError({
@@ -170,15 +183,14 @@ export default defineEventHandler(async (event) => {
 	}
 
 	// Create the short link in Hasura
-	const { data: result, error: mutationError } = await executeMutation<{ insert_short_links_one: any }>(
-		CREATE_SHORT_LINK,
-		{
-			originalUrl,
-			shortUrl,
-			customAlias: customAlias || null,
-			userId: effectiveUserId,
-		}
-	);
+	const { data: result, error: mutationError } = await executeMutation<{
+		insert_short_links_one: any;
+	}>(CREATE_SHORT_LINK, {
+		originalUrl,
+		shortUrl,
+		customAlias: customAlias || null,
+		userId: effectiveUserId,
+	});
 
 	if (mutationError || !result) {
 		throw createError({

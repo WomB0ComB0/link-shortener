@@ -194,60 +194,84 @@
 </template>
 
 <script lang="ts" setup>
-import type { LinkVerificationResult } from '~/server/security/verification-pipeline';
+import type { LinkVerificationResult } from "~/server/security/verification-pipeline";
 
 interface Props {
-  verification: LinkVerificationResult;
+	verification: LinkVerificationResult;
 }
 
 const props = defineProps<Props>();
 
 const riskIcon = computed(() => {
-  switch (props.verification.overallRisk) {
-    case 'safe': return 'i-heroicons-shield-check';
-    case 'low': return 'i-heroicons-shield-check';
-    case 'medium': return 'i-heroicons-exclamation-triangle';
-    case 'high': return 'i-heroicons-exclamation-circle';
-    case 'critical': return 'i-heroicons-x-circle';
-    default: return 'i-heroicons-question-mark-circle';
-  }
+	switch (props.verification.overallRisk) {
+		case "safe":
+			return "i-heroicons-shield-check";
+		case "low":
+			return "i-heroicons-shield-check";
+		case "medium":
+			return "i-heroicons-exclamation-triangle";
+		case "high":
+			return "i-heroicons-exclamation-circle";
+		case "critical":
+			return "i-heroicons-x-circle";
+		default:
+			return "i-heroicons-question-mark-circle";
+	}
 });
 
 const riskIconColor = computed(() => {
-  switch (props.verification.overallRisk) {
-    case 'safe': return 'text-green-500';
-    case 'low': return 'text-blue-500';
-    case 'medium': return 'text-yellow-500';
-    case 'high': return 'text-orange-500';
-    case 'critical': return 'text-red-500';
-    default: return 'text-gray-500';
-  }
+	switch (props.verification.overallRisk) {
+		case "safe":
+			return "text-green-500";
+		case "low":
+			return "text-blue-500";
+		case "medium":
+			return "text-yellow-500";
+		case "high":
+			return "text-orange-500";
+		case "critical":
+			return "text-red-500";
+		default:
+			return "text-gray-500";
+	}
 });
 
 const riskBadgeColor = computed(() => {
-  switch (props.verification.overallRisk) {
-    case 'safe': return 'success';
-    case 'low': return 'info';
-    case 'medium': return 'warning';
-    case 'high': return 'warning';
-    case 'critical': return 'error';
-    default: return 'neutral';
-  }
+	switch (props.verification.overallRisk) {
+		case "safe":
+			return "success";
+		case "low":
+			return "info";
+		case "medium":
+			return "warning";
+		case "high":
+			return "warning";
+		case "critical":
+			return "error";
+		default:
+			return "neutral";
+	}
 });
 
 const riskBarColor = computed(() => {
-  switch (props.verification.overallRisk) {
-    case 'safe': return 'bg-green-500';
-    case 'low': return 'bg-blue-500';
-    case 'medium': return 'bg-yellow-500';
-    case 'high': return 'bg-orange-500';
-    case 'critical': return 'bg-red-500';
-    default: return 'bg-gray-500';
-  }
+	switch (props.verification.overallRisk) {
+		case "safe":
+			return "bg-green-500";
+		case "low":
+			return "bg-blue-500";
+		case "medium":
+			return "bg-yellow-500";
+		case "high":
+			return "bg-orange-500";
+		case "critical":
+			return "bg-red-500";
+		default:
+			return "bg-gray-500";
+	}
 });
 
 function formatDate(date: Date | undefined): string {
-  if (!date) return 'N/A';
-  return new Date(date).toLocaleString();
+	if (!date) return "N/A";
+	return new Date(date).toLocaleString();
 }
 </script>

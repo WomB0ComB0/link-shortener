@@ -4,67 +4,67 @@
  * Type-safe with Effect Schema
  */
 
-import { defineEventHandler, createError } from 'h3';
-import { GET_USER_BY_ID } from '../../../lib/graphql/operations';
-import { executeQuery } from '../../utils/graphql';
-import { getUserIdFromHeaders } from '../../utils/auth';
-import { UserProfileResponse } from '../../../server/schemas/index';
+import { createError, defineEventHandler } from "h3";
+import { GET_USER_BY_ID } from "../../../lib/graphql/operations";
+import { UserProfileResponse } from "../../../server/schemas/index";
+import { getUserIdFromHeaders } from "../../utils/auth";
+import { executeQuery } from "../../utils/graphql";
 
 export default defineEventHandler(async (event) => {
-  try {
-    // Get user ID from auth token (type-safe)
-    const userId = getUserIdFromHeaders(event);
+	try {
+		// Get user ID from auth token (type-safe)
+		const userId = getUserIdFromHeaders(event);
 
-    if (!userId) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Unauthorized - valid token required',
-      });
-    }
+		if (!userId) {
+			throw createError({
+				statusCode: 401,
+				statusMessage: "Unauthorized - valid token required",
+			});
+		}
 
-    // Get user details
-    const { data, error: queryError } = await executeQuery(GET_USER_BY_ID, {
-      userId: userId,
-    });
+		// Get user details
+		const { data, error: queryError } = await executeQuery(GET_USER_BY_ID, {
+			userId: userId,
+		});
 
-    if (queryError) {
-      console.error('GraphQL query error:', queryError);
-      throw createError({
-        statusCode: 500,
-        statusMessage: 'Failed to fetch user profile',
-      });
-    }
+		if (queryError) {
+			console.error("GraphQL query error:", queryError);
+			throw createError({
+				statusCode: 500,
+				statusMessage: "Failed to fetch user profile",
+			});
+		}
 
-    const users = data?.users || [];
+		const users = data?.users || [];
 
-    if (users.length === 0) {
-      throw createError({
-        statusCode: 404,
-        statusMessage: 'User not found',
-      });
-    }
+		if (users.length === 0) {
+			throw createError({
+				statusCode: 404,
+				statusMessage: "User not found",
+			});
+		}
 
-    const user = users[0];
+		const user = users[0];
 
-    // Return type-safe response
-    const response = new UserProfileResponse({
-      id: user.id,
-      email: user.email,
-      displayName: user.display_name ?? null,
-      photoUrl: user.photo_url ?? null,
-      createdAt: new Date(user.created_at),
-    });
+		// Return type-safe response
+		const response = new UserProfileResponse({
+			id: user.id,
+			email: user.email,
+			displayName: user.display_name ?? null,
+			photoUrl: user.photo_url ?? null,
+			createdAt: new Date(user.created_at),
+		});
 
-    return response;
-  } catch (error: any) {
-    if (error.statusCode) {
-      throw error;
-    }
+		return response;
+	} catch (error: any) {
+		if (error.statusCode) {
+			throw error;
+		}
 
-    console.error('Profile fetch error:', error);
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Failed to fetch profile',
-    });
-  }
+		console.error("Profile fetch error:", error);
+		throw createError({
+			statusCode: 500,
+			statusMessage: "Failed to fetch profile",
+		});
+	}
 });

@@ -1,9 +1,6 @@
 import process from "node:process";
 import type { ModuleOptions } from "@vite-pwa/nuxt";
-import type {
-	ManifestOptions,
-	VitePWAOptions,
-} from "vite-plugin-pwa";
+import type { ManifestOptions, VitePWAOptions } from "vite-plugin-pwa";
 import { app } from "../constants/index.js";
 
 const scope = "/";

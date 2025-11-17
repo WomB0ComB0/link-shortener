@@ -3,33 +3,12 @@
  * Central export point for all security verification utilities
  */
 
-// URL Validation
-export {
-	validateUrl,
-	isValidUrlFormat,
-	SecureUrlSchema,
-	type UrlValidationResult,
-} from "./url-validator";
-
 // DNS Checking
 export {
 	checkDns,
-	domainExists,
 	type DnsCheckResult,
+	domainExists,
 } from "./dns-checker";
-
-// SSL/TLS Verification
-export {
-	checkSsl,
-	type SslCheckResult,
-} from "./ssl-checker";
-
-// Phishing Detection
-export {
-	detectPhishing,
-	type PhishingCheckResult,
-} from "./phishing-detector";
-
 // Malware Scanning
 export {
 	checkMalware,
@@ -37,12 +16,29 @@ export {
 	type MalwareCheckResult,
 	type ThreatMatch,
 } from "./malware-checker";
+// Phishing Detection
+export {
+	detectPhishing,
+	type PhishingCheckResult,
+} from "./phishing-detector";
+// SSL/TLS Verification
+export {
+	checkSsl,
+	type SslCheckResult,
+} from "./ssl-checker";
+// URL Validation
+export {
+	isValidUrlFormat,
+	SecureUrlSchema,
+	type UrlValidationResult,
+	validateUrl,
+} from "./url-validator";
 
 // Verification Pipeline
 export {
-	verifyLink,
 	clearVerificationCache,
 	getCacheStats,
 	type LinkVerificationResult,
 	type VerificationOptions,
+	verifyLink,
 } from "./verification-pipeline";

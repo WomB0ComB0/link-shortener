@@ -1,10 +1,10 @@
 /**
- * DNS Security Checker Module  
+ * DNS Security Checker Module
  * Validates DNS records and detects suspicious configurations with Effect Schema
  */
 
-import * as S from "@effect/schema/Schema";
 import dns from "node:dns/promises";
+import * as S from "@effect/schema/Schema";
 
 // Effect Schema for MX record
 export class MxRecord extends S.Class<MxRecord>("MxRecord")({
@@ -22,10 +22,12 @@ export class DnsCheckResult extends S.Class<DnsCheckResult>("DnsCheckResult")({
 	hasCnameRecord: S.Boolean,
 	aRecords: S.Array(S.String),
 	aaaaRecords: S.Array(S.String),
-	mxRecords: S.Array(S.Struct({
-		exchange: S.String,
-		priority: S.Number,
-	})),
+	mxRecords: S.Array(
+		S.Struct({
+			exchange: S.String,
+			priority: S.Number,
+		}),
+	),
 	cnameRecords: S.Array(S.String),
 	errors: S.Array(S.String),
 	warnings: S.Array(S.String),
@@ -91,7 +93,11 @@ export async function checkDns(hostname: string): Promise<DnsCheckResult> {
 	}
 
 	// Validation checks
-	if (aRecords.length === 0 && aaaaRecords.length === 0 && cnameRecords.length === 0) {
+	if (
+		aRecords.length === 0 &&
+		aaaaRecords.length === 0 &&
+		cnameRecords.length === 0
+	) {
 		errors.push("No valid DNS records found for this domain");
 	}
 

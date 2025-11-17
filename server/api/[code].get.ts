@@ -14,10 +14,19 @@
  * limitations under the License.
  */
 
-import { createError, defineEventHandler, getHeader, getRouterParam, sendRedirect } from "h3";
+import {
+	createError,
+	defineEventHandler,
+	getHeader,
+	getRouterParam,
+	sendRedirect,
+} from "h3";
 import { getClientIP, getIpLocation } from "../../lib/get-ip";
-import { executeQuery, executeMutation } from "../../server/utils/graphql";
-import { GET_SHORT_LINK_BY_CODE, CREATE_CLICK } from "../../lib/graphql/operations";
+import {
+	CREATE_CLICK,
+	GET_SHORT_LINK_BY_CODE,
+} from "../../lib/graphql/operations";
+import { executeMutation, executeQuery } from "../../server/utils/graphql";
 
 export default defineEventHandler(async (event) => {
 	const shortUrl = getRouterParam(event, "code");
@@ -33,7 +42,7 @@ export default defineEventHandler(async (event) => {
 	// Query Hasura to get the link
 	const { data, error } = await executeQuery<{ short_links: any[] }>(
 		GET_SHORT_LINK_BY_CODE,
-		{ code: shortUrl }
+		{ code: shortUrl },
 	);
 
 	if (error || !data || data.short_links.length === 0) {
@@ -43,7 +52,7 @@ export default defineEventHandler(async (event) => {
 			message: "Short link not found",
 		});
 	}
-	
+
 	const link = data.short_links[0];
 
 	if (!link.is_active) {

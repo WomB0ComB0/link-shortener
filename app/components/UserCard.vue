@@ -27,13 +27,13 @@
 
 <script lang="ts" setup>
 defineProps<{
-  user: {
-    email: string;
-    displayName?: string | null;
-  };
+	user: {
+		email: string;
+		displayName?: string | null;
+	};
 }>();
 
 const emit = defineEmits<{
-  logout: [];
+	logout: [];
 }>();
 </script>

@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary-hsl: 255, 85%, 60%;
+    --color-secondary-hsl: 280, 80%, 70%;
+    --color-accent-hsl: 300, 85%, 65%;
+    --color-dark-hsl: 250, 30%, 10%;
+    --color-text-hsl: 255, 20%, 85%;
+    --color-text-muted-hsl: 255, 15%, 55%;
+
+    --color-primary: hsl(var(--color-primary-hsl));
+    --color-secondary: hsl(var(--color-secondary-hsl));
+    --color-accent: hsl(var(--color-accent-hsl));
+    --color-dark: hsl(var(--color-dark-hsl));
+    --color-text: hsl(var(--color-text-hsl));
+    --color-text-muted: hsl(var(--color-text-muted-hsl));
+  }
+
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+      Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    background-color: var(--color-dark);
+    color: var(--color-text);
+  }
+
+  html::-webkit-scrollbar {
+    display: none;
+  }
+
+  body {
+    line-height: 1.6;
+    overflow-x: hidden;
+    background: transparent;
+  }
+}
+
+@layer components {
+  .btn-elysium {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white border-none shadow-lg transition-all;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  }
+  
+  .btn-elysium:hover {
+    @apply scale-105 shadow-xl;
+  }
+
+  .card-elysium {
+    @apply rounded-xl shadow-xl border transition-all;
+    background: rgba(15, 10, 26, 0.6);
+    border-color: rgba(167, 139, 250, 0.2);
+  }
+  
+  .card-elysium:hover {
+    @apply shadow-2xl;
+    border-color: rgba(167, 139, 250, 0.5);
+  }
+}

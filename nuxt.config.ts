@@ -7,7 +7,6 @@ export default defineNuxtConfig({
 	devtools: { enabled: true },
 
 	modules: [
-		"@unocss/nuxt",
 		"@nuxt/fonts",
 		"@nuxt/icon",
 		"@nuxt/image",
@@ -18,7 +17,7 @@ export default defineNuxtConfig({
 		"@vite-pwa/nuxt",
 	] as const as string[],
 
-	css: ["./app/assets/css/colors.css"],
+	css: ["./app/assets/css/main.css"],
 
 	runtimeConfig: {
 		MASTER_PASSWORD_HASH: process.env.MASTER_PASSWORD_HASH,
@@ -43,6 +42,7 @@ export default defineNuxtConfig({
 				{ rel: "icon", type: "image/svg+xml", href: "/nuxt.svg" },
 				{ rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
 			],
+			script: [{ src: "https://cdn.tailwindcss.com", defer: true }],
 			meta: [
 				{ name: "viewport", content: "width=device-width, initial-scale=1" },
 				{ name: "description", content: app.description },

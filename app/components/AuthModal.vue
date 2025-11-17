@@ -78,59 +78,59 @@
 <script lang="ts" setup>
 const isOpen = defineModel<boolean>({ required: true });
 const emit = defineEmits<{
-  success: [token: string];
+	success: [token: string];
 }>();
 
 const isLogin = ref(true);
 const loading = ref(false);
-const error = ref('');
+const error = ref("");
 
 const form = ref({
-  email: '',
-  password: '',
-  displayName: '',
+	email: "",
+	password: "",
+	displayName: "",
 });
 
 function toggleMode() {
-  isLogin.value = !isLogin.value;
-  error.value = '';
+	isLogin.value = !isLogin.value;
+	error.value = "";
 }
 
 async function handleSubmit() {
-  loading.value = true;
-  error.value = '';
+	loading.value = true;
+	error.value = "";
 
-  try {
-    const endpoint = isLogin.value ? '/api/auth/login' : '/api/auth/register';
-    
-    const response = await $fetch<{ user: any; token: string }>(endpoint, {
-      method: 'POST',
-      body: isLogin.value
-        ? { email: form.value.email, password: form.value.password }
-        : {
-            email: form.value.email,
-            password: form.value.password,
-            displayName: form.value.displayName || undefined,
-          },
-    });
+	try {
+		const endpoint = isLogin.value ? "/api/auth/login" : "/api/auth/register";
 
-    // Save token and emit success
-    emit('success', response.token);
-    
-    // Reset form
-    form.value = { email: '', password: '', displayName: '' };
-    isOpen.value = false;
-  } catch (err: any) {
-    error.value = err.data?.message || err.message || 'Authentication failed';
-  } finally {
-    loading.value = false;
-  }
+		const response = await $fetch<{ user: any; token: string }>(endpoint, {
+			method: "POST",
+			body: isLogin.value
+				? { email: form.value.email, password: form.value.password }
+				: {
+						email: form.value.email,
+						password: form.value.password,
+						displayName: form.value.displayName || undefined,
+					},
+		});
+
+		// Save token and emit success
+		emit("success", response.token);
+
+		// Reset form
+		form.value = { email: "", password: "", displayName: "" };
+		isOpen.value = false;
+	} catch (err: any) {
+		error.value = err.data?.message || err.message || "Authentication failed";
+	} finally {
+		loading.value = false;
+	}
 }
 
 watch(isOpen, (value) => {
-  if (!value) {
-    error.value = '';
-    form.value = { email: '', password: '', displayName: '' };
-  }
+	if (!value) {
+		error.value = "";
+		form.value = { email: "", password: "", displayName: "" };
+	}
 });
 </script>

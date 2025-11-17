@@ -5,17 +5,23 @@
 
 import * as S from "@effect/schema/Schema";
 import NodeCache from "node-cache";
-import { validateUrl, UrlValidationResult } from "./url-validator";
 import { checkDns, DnsCheckResult } from "./dns-checker";
-import { checkSsl, SslCheckResult } from "./ssl-checker";
+import {
+	checkMalware,
+	checkSuspiciousPatterns,
+	MalwareCheckResult,
+} from "./malware-checker";
 import { detectPhishing, PhishingCheckResult } from "./phishing-detector";
-import { checkMalware, checkSuspiciousPatterns, MalwareCheckResult } from "./malware-checker";
+import { checkSsl, SslCheckResult } from "./ssl-checker";
+import { UrlValidationResult, validateUrl } from "./url-validator";
 
 // Cache verification results for 1 hour
 const verificationCache = new NodeCache({ stdTTL: 3600 });
 
 // Effect Schema for verification options
-export class VerificationOptions extends S.Class<VerificationOptions>("VerificationOptions")({
+export class VerificationOptions extends S.Class<VerificationOptions>(
+	"VerificationOptions",
+)({
 	skipCache: S.optional(S.Boolean),
 	skipDns: S.optional(S.Boolean),
 	skipSsl: S.optional(S.Boolean),
@@ -25,14 +31,18 @@ export class VerificationOptions extends S.Class<VerificationOptions>("Verificat
 }) {}
 
 // Effect Schema for verification metadata
-export class VerificationMetadata extends S.Class<VerificationMetadata>("VerificationMetadata")({
+export class VerificationMetadata extends S.Class<VerificationMetadata>(
+	"VerificationMetadata",
+)({
 	verifiedAt: S.Date,
 	totalCheckTime: S.Number,
 	cached: S.Boolean,
 }) {}
 
 // Effect Schema for verification summary
-export class VerificationSummary extends S.Class<VerificationSummary>("VerificationSummary")({
+export class VerificationSummary extends S.Class<VerificationSummary>(
+	"VerificationSummary",
+)({
 	totalErrors: S.Number,
 	totalWarnings: S.Number,
 	criticalIssues: S.Array(S.String),
@@ -40,7 +50,9 @@ export class VerificationSummary extends S.Class<VerificationSummary>("Verificat
 }) {}
 
 // Effect Schema for verification checks
-export class VerificationChecks extends S.Class<VerificationChecks>("VerificationChecks")({
+export class VerificationChecks extends S.Class<VerificationChecks>(
+	"VerificationChecks",
+)({
 	urlValidation: S.instanceOf(UrlValidationResult),
 	dnsCheck: S.instanceOf(DnsCheckResult),
 	sslCheck: S.instanceOf(SslCheckResult),
@@ -49,7 +61,9 @@ export class VerificationChecks extends S.Class<VerificationChecks>("Verificatio
 }) {}
 
 // Effect Schema for link verification result
-export class LinkVerificationResult extends S.Class<LinkVerificationResult>("LinkVerificationResult")({
+export class LinkVerificationResult extends S.Class<LinkVerificationResult>(
+	"LinkVerificationResult",
+)({
 	url: S.String,
 	isVerified: S.Boolean,
 	overallRisk: S.Literal("safe", "low", "medium", "high", "critical"),
@@ -79,7 +93,7 @@ export class LinkVerificationResult extends S.Class<LinkVerificationResult>("Lin
  */
 export async function verifyLink(
 	url: string,
-	options: Partial<VerificationOptions> = {}
+	options: Partial<VerificationOptions> = {},
 ): Promise<LinkVerificationResult> {
 	const startTime = Date.now();
 
@@ -98,13 +112,18 @@ export async function verifyLink(
 	}
 
 	// Run all checks in parallel for performance
-	const [urlValidation, dnsCheck, sslCheck, phishingCheck, malwareCheck] = await Promise.all([
-		validateUrl(url),
-		options.skipDns ? createSkippedDnsResult(new URL(url).hostname) : checkDns(new URL(url).hostname),
-		options.skipSsl ? createSkippedSslResult(url) : checkSsl(url),
-		options.skipPhishing ? createSkippedPhishingResult(url) : detectPhishing(url),
-		options.skipMalware ? createSkippedMalwareResult(url) : checkMalware(url),
-	]);
+	const [urlValidation, dnsCheck, sslCheck, phishingCheck, malwareCheck] =
+		await Promise.all([
+			validateUrl(url),
+			options.skipDns
+				? createSkippedDnsResult(new URL(url).hostname)
+				: checkDns(new URL(url).hostname),
+			options.skipSsl ? createSkippedSslResult(url) : checkSsl(url),
+			options.skipPhishing
+				? createSkippedPhishingResult(url)
+				: detectPhishing(url),
+			options.skipMalware ? createSkippedMalwareResult(url) : checkMalware(url),
+		]);
 
 	// Calculate overall risk score
 	const riskScore = calculateRiskScore({
@@ -146,7 +165,9 @@ export async function verifyLink(
 	}
 
 	if (phishingCheck.isPhishing) {
-		criticalIssues.push(`Potential phishing detected (${phishingCheck.suspicionScore}% confidence)`);
+		criticalIssues.push(
+			`Potential phishing detected (${phishingCheck.suspicionScore}% confidence)`,
+		);
 	}
 
 	if (!malwareCheck.isSafe) {
@@ -171,7 +192,8 @@ export async function verifyLink(
 	});
 
 	// Determine if link is verified (safe to use)
-	const isVerified = allErrors.length === 0 && criticalIssues.length === 0 && riskScore < 50;
+	const isVerified =
+		allErrors.length === 0 && criticalIssues.length === 0 && riskScore < 50;
 
 	const result = new LinkVerificationResult({
 		url,
@@ -240,7 +262,7 @@ function calculateRiskScore(checks: {
 	}
 
 	// Warning penalties (1 point per warning, max 10)
-	const totalWarnings = 
+	const totalWarnings =
 		checks.urlValidation.warnings.length +
 		checks.dnsCheck.warnings.length +
 		checks.sslCheck.warnings.length +
@@ -254,7 +276,9 @@ function calculateRiskScore(checks: {
 /**
  * Convert risk score to risk level
  */
-function getRiskLevel(score: number): "safe" | "low" | "medium" | "high" | "critical" {
+function getRiskLevel(
+	score: number,
+): "safe" | "low" | "medium" | "high" | "critical" {
 	if (score >= 80) return "critical";
 	if (score >= 60) return "high";
 	if (score >= 40) return "medium";
@@ -281,26 +305,39 @@ function generateRecommendations(checks: {
 
 	// DNS recommendations
 	if (!checks.dnsCheck.hasMxRecord && checks.dnsCheck.hasARecord) {
-		recommendations.push("Domain has no email records - may be newly registered");
+		recommendations.push(
+			"Domain has no email records - may be newly registered",
+		);
 	}
 
 	// SSL recommendations
-	if (checks.sslCheck.daysUntilExpiration && checks.sslCheck.daysUntilExpiration < 30) {
-		recommendations.push("SSL certificate expiring soon - verify site legitimacy");
+	if (
+		checks.sslCheck.daysUntilExpiration &&
+		checks.sslCheck.daysUntilExpiration < 30
+	) {
+		recommendations.push(
+			"SSL certificate expiring soon - verify site legitimacy",
+		);
 	}
 
 	// Phishing recommendations
 	if (checks.phishingCheck.suspicionScore > 30) {
-		recommendations.push("URL shows signs of phishing - verify authenticity before sharing");
+		recommendations.push(
+			"URL shows signs of phishing - verify authenticity before sharing",
+		);
 	}
 
 	if (checks.phishingCheck.reasons.length > 0) {
-		recommendations.push("Manual review recommended due to suspicious patterns");
+		recommendations.push(
+			"Manual review recommended due to suspicious patterns",
+		);
 	}
 
 	// Malware recommendations
 	if (checks.malwareCheck.threats.length > 0) {
-		recommendations.push("DO NOT SHARE - URL flagged as malicious by security providers");
+		recommendations.push(
+			"DO NOT SHARE - URL flagged as malicious by security providers",
+		);
 	}
 
 	// General recommendations

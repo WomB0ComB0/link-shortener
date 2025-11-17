@@ -1,9 +1,8 @@
-import { Logger } from "~/utils";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getDataConnect } from "firebase-admin/data-connect";
-
 import type { NuxtApp } from "node_modules/nuxt/dist/app/nuxt.js";
+import { Logger } from "~/utils";
 
 export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
 	const logger = Logger.getLogger("Firebase");

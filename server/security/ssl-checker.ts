@@ -3,8 +3,8 @@
  * Checks SSL certificate validity and security with Effect Schema
  */
 
-import * as S from "@effect/schema/Schema";
 import https from "node:https";
+import * as S from "@effect/schema/Schema";
 
 // Effect Schema for SSL check result
 export class SslCheckResult extends S.Class<SslCheckResult>("SslCheckResult")({
@@ -110,7 +110,7 @@ export async function checkSsl(url: string): Promise<SslCheckResult> {
 		const validTo = new Date(cert.valid_to);
 		const now = new Date();
 		const daysUntilExpiration = Math.floor(
-			(validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+			(validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
 		);
 
 		// Certificate expiration warnings
@@ -140,7 +140,11 @@ export async function checkSsl(url: string): Promise<SslCheckResult> {
 		// Cipher warnings
 		if (certificateInfo.cipher) {
 			const cipher = certificateInfo.cipher.name;
-			if (cipher.includes("RC4") || cipher.includes("DES") || cipher.includes("MD5")) {
+			if (
+				cipher.includes("RC4") ||
+				cipher.includes("DES") ||
+				cipher.includes("MD5")
+			) {
 				warnings.push(`Weak cipher suite: ${cipher}`);
 			}
 		}

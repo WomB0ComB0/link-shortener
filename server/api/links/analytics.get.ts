@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { defineEventHandler, getQuery, createError } from "h3";
+import { createError, defineEventHandler, getQuery } from "h3";
+import { GET_LINK_ANALYTICS } from "../../../lib/graphql/operations";
 import {
 	encodeSync,
 	ShortLinkWithAnalytics,
 	UUIDSchema,
 } from "../../../server/schemas/index";
-import { validateSync } from "../../../server/utils/validation";
 import { executeQuery } from "../../../server/utils/graphql";
-import { GET_LINK_ANALYTICS } from "../../../lib/graphql/operations";
+import { validateSync } from "../../../server/utils/validation";
 
 export default defineEventHandler(async (event) => {
 	const query = getQuery(event);
@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
 	);
 
 	// Query Hasura for the short link and its analytics
-	const { data, error } = await executeQuery<{ 
+	const { data, error } = await executeQuery<{
 		short_links: Array<{
 			id: string;
 			short_url: string;
@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
 					count: number;
 				};
 			};
-		}>
+		}>;
 	}>(GET_LINK_ANALYTICS, { shortLinkId });
 
 	if (error || !data || data.short_links.length === 0) {
@@ -72,7 +72,7 @@ export default defineEventHandler(async (event) => {
 	const link = data.short_links[0];
 
 	// Map clicks to the schema format
-	const clicksData = link.clicks.map(click => ({
+	const clicksData = link.clicks.map((click) => ({
 		id: click.id,
 		shortLinkId,
 		timestamp: new Date(click.timestamp),

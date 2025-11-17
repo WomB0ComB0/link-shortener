@@ -3,23 +3,23 @@
  * Type-safe with Effect Schema
  */
 
-import { createHash } from 'crypto';
-import { getHeader } from 'h3';
-import * as S from '@effect/schema/Schema';
-import { 
-	EmailSchema, 
-	PasswordSchema, 
-	PasswordHashSchema,
+import * as S from "@effect/schema/Schema";
+import { createHash } from "crypto";
+import { getHeader } from "h3";
+import {
+	EmailSchema,
 	JwtTokenSchema,
-	SessionTokenPayload 
-} from '../schemas/index';
+	PasswordHashSchema,
+	PasswordSchema,
+	SessionTokenPayload,
+} from "../schemas/index";
 
 /**
  * Hash a password using SHA-256
  * Returns a validated password hash
  */
 export function hashPassword(password: string): string {
-	const hash = createHash('sha256').update(password).digest('hex');
+	const hash = createHash("sha256").update(password).digest("hex");
 	// Validate that the hash is correct format
 	return S.decodeSync(PasswordHashSchema)(hash);
 }
@@ -47,12 +47,12 @@ export function generateSessionToken(userId: string): string {
 	const payload = new SessionTokenPayload({
 		userId,
 		iat: Date.now(),
-		exp: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days
+		exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
 	});
-	
+
 	// Encode payload
-	const token = Buffer.from(JSON.stringify(payload)).toString('base64');
-	
+	const token = Buffer.from(JSON.stringify(payload)).toString("base64");
+
 	// Validate token format
 	return S.decodeSync(JwtTokenSchema)(token);
 }
@@ -65,18 +65,18 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
 	try {
 		// Validate token format first
 		S.decodeSync(JwtTokenSchema)(token);
-		
+
 		// Decode and parse
-		const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
-		
+		const decoded = JSON.parse(Buffer.from(token, "base64").toString());
+
 		// Validate payload structure
 		const payload = S.decodeSync(SessionTokenPayload)(decoded);
-		
+
 		// Check if token is expired
 		if (payload.exp < Date.now()) {
 			return null;
 		}
-		
+
 		return payload;
 	} catch {
 		return null;
@@ -88,16 +88,16 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
  * Returns validated UUID or null
  */
 export function getUserIdFromHeaders(event: any): string | null {
-  const authHeader = getHeader(event, 'authorization');
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  
-  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-  const decoded = verifySessionToken(token);
-  
-  return decoded?.userId || null;
+	const authHeader = getHeader(event, "authorization");
+
+	if (!authHeader || !authHeader.startsWith("Bearer ")) {
+		return null;
+	}
+
+	const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+	const decoded = verifySessionToken(token);
+
+	return decoded?.userId || null;
 }
 
 /**
@@ -116,13 +116,16 @@ export function isValidEmail(email: string): boolean {
  * Validate password strength using Effect Schema
  * Returns detailed validation result
  */
-export function isValidPassword(password: string): { valid: boolean; message?: string } {
+export function isValidPassword(password: string): {
+	valid: boolean;
+	message?: string;
+} {
 	try {
 		S.decodeSync(PasswordSchema)(password);
 		return { valid: true };
 	} catch (error: any) {
 		// Extract the first error message from Effect Schema
-		const message = error?.message || 'Invalid password format';
+		const message = error?.message || "Invalid password format";
 		return { valid: false, message };
 	}
 }

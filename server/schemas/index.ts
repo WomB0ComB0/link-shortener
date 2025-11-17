@@ -93,12 +93,9 @@ export const MasterPasswordSchema = pipe(
  */
 export const EmailSchema = pipe(
 	S.String,
-	S.filter(
-		(email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
-		{
-			message: () => "Must be a valid email address",
-		},
-	),
+	S.filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), {
+		message: () => "Must be a valid email address",
+	}),
 	S.annotations({
 		description: "A valid email address",
 	}),
@@ -114,26 +111,18 @@ export const EmailSchema = pipe(
 export const PasswordSchema = pipe(
 	S.String,
 	S.minLength(8),
-	S.filter(
-		(password) => /[A-Z]/.test(password),
-		{
-			message: () => "Password must contain at least one uppercase letter",
-		},
-	),
-	S.filter(
-		(password) => /[a-z]/.test(password),
-		{
-			message: () => "Password must contain at least one lowercase letter",
-		},
-	),
-	S.filter(
-		(password) => /[0-9]/.test(password),
-		{
-			message: () => "Password must contain at least one number",
-		},
-	),
+	S.filter((password) => /[A-Z]/.test(password), {
+		message: () => "Password must contain at least one uppercase letter",
+	}),
+	S.filter((password) => /[a-z]/.test(password), {
+		message: () => "Password must contain at least one lowercase letter",
+	}),
+	S.filter((password) => /[0-9]/.test(password), {
+		message: () => "Password must contain at least one number",
+	}),
 	S.annotations({
-		description: "A strong password with at least 8 characters, one uppercase, one lowercase, and one number",
+		description:
+			"A strong password with at least 8 characters, one uppercase, one lowercase, and one number",
 	}),
 );
 
@@ -388,7 +377,9 @@ export class ApiErrorResponse extends S.Class<ApiErrorResponse>(
  */
 
 // User with Password Hash (internal use only)
-export class UserWithPassword extends S.Class<UserWithPassword>("UserWithPassword")({
+export class UserWithPassword extends S.Class<UserWithPassword>(
+	"UserWithPassword",
+)({
 	id: UUIDSchema,
 	email: EmailSchema,
 	displayName: S.NullOr(DisplayNameSchema),
@@ -398,7 +389,9 @@ export class UserWithPassword extends S.Class<UserWithPassword>("UserWithPasswor
 }) {}
 
 // Register Request
-export class RegisterRequest extends S.Class<RegisterRequest>("RegisterRequest")({
+export class RegisterRequest extends S.Class<RegisterRequest>(
+	"RegisterRequest",
+)({
 	email: EmailSchema,
 	password: PasswordSchema,
 	displayName: S.optional(DisplayNameSchema),
@@ -423,14 +416,18 @@ export class AuthResponse extends S.Class<AuthResponse>("AuthResponse")({
 }) {}
 
 // Session Token Payload
-export class SessionTokenPayload extends S.Class<SessionTokenPayload>("SessionTokenPayload")({
+export class SessionTokenPayload extends S.Class<SessionTokenPayload>(
+	"SessionTokenPayload",
+)({
 	userId: UUIDSchema,
 	iat: pipe(S.Number, S.int(), S.positive()),
 	exp: pipe(S.Number, S.int(), S.positive()),
 }) {}
 
 // User Profile Response
-export class UserProfileResponse extends S.Class<UserProfileResponse>("UserProfileResponse")({
+export class UserProfileResponse extends S.Class<UserProfileResponse>(
+	"UserProfileResponse",
+)({
 	id: UUIDSchema,
 	email: EmailSchema,
 	displayName: S.NullishOr(S.String),
@@ -443,7 +440,9 @@ export class UserProfileResponse extends S.Class<UserProfileResponse>("UserProfi
  */
 
 // GraphQL User Response (from database)
-export class GraphQLUserResponse extends S.Class<GraphQLUserResponse>("GraphQLUserResponse")({
+export class GraphQLUserResponse extends S.Class<GraphQLUserResponse>(
+	"GraphQLUserResponse",
+)({
 	id: S.String,
 	email: S.String,
 	display_name: S.NullOr(S.String),
@@ -452,7 +451,9 @@ export class GraphQLUserResponse extends S.Class<GraphQLUserResponse>("GraphQLUs
 }) {}
 
 // GraphQL User with Password Response (from database)
-export class GraphQLUserWithPasswordResponse extends S.Class<GraphQLUserWithPasswordResponse>("GraphQLUserWithPasswordResponse")({
+export class GraphQLUserWithPasswordResponse extends S.Class<GraphQLUserWithPasswordResponse>(
+	"GraphQLUserWithPasswordResponse",
+)({
 	id: S.String,
 	email: S.String,
 	display_name: S.NullOr(S.String),
@@ -462,17 +463,23 @@ export class GraphQLUserWithPasswordResponse extends S.Class<GraphQLUserWithPass
 }) {}
 
 // GraphQL Create User Response
-export class GraphQLCreateUserResponse extends S.Class<GraphQLCreateUserResponse>("GraphQLCreateUserResponse")({
+export class GraphQLCreateUserResponse extends S.Class<GraphQLCreateUserResponse>(
+	"GraphQLCreateUserResponse",
+)({
 	insert_users_one: GraphQLUserResponse,
 }) {}
 
 // GraphQL Get User by Email Response
-export class GraphQLGetUserByEmailResponse extends S.Class<GraphQLGetUserByEmailResponse>("GraphQLGetUserByEmailResponse")({
+export class GraphQLGetUserByEmailResponse extends S.Class<GraphQLGetUserByEmailResponse>(
+	"GraphQLGetUserByEmailResponse",
+)({
 	users: S.Array(GraphQLUserResponse),
 }) {}
 
 // GraphQL Get User by Email with Password Response
-export class GraphQLGetUserByEmailWithPasswordResponse extends S.Class<GraphQLGetUserByEmailWithPasswordResponse>("GraphQLGetUserByEmailWithPasswordResponse")({
+export class GraphQLGetUserByEmailWithPasswordResponse extends S.Class<GraphQLGetUserByEmailWithPasswordResponse>(
+	"GraphQLGetUserByEmailWithPasswordResponse",
+)({
 	users: S.Array(GraphQLUserWithPasswordResponse),
 }) {}
 

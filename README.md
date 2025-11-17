@@ -183,7 +183,7 @@ GET /api/auth/me
 
 ## 🏗️ Tech Stack
 
-- **Frontend:** Nuxt 3, Vue 3, Nuxt UI
+- **Frontend:** Nuxt 3, Vue 3, Nuxt UI, Tailwind CSS v4
 - **Backend:** Nitro, H3, Effect Schema
 - **Database:** Railway PostgreSQL
 - **GraphQL:** Hasura
@@ -191,6 +191,7 @@ GET /api/auth/me
 - **Security:** Google Safe Browsing API v4
 - **Auth:** JWT with SHA-256 hashing
 - **Type Safety:** Effect Schema, TypeScript
+- **Runtime:** Deno
 
 ## 📚 Documentation
 

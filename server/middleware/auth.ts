@@ -16,8 +16,8 @@
 
 import type { H3Event } from "h3";
 import { createError, defineEventHandler, getHeader, readBody } from "h3";
-import { verifyMasterPassword } from "../utils/helpers.js";
 import { getUserIdFromHeaders } from "../utils/auth.js";
+import { verifyMasterPassword } from "../utils/helpers.js";
 
 /**
  * Middleware to verify authentication for protected routes
@@ -57,7 +57,8 @@ export default defineEventHandler(async (event: H3Event) => {
 			throw createError({
 				statusCode: 401,
 				statusMessage: "Unauthorized",
-				message: "Authentication required: provide either Bearer token or master password",
+				message:
+					"Authentication required: provide either Bearer token or master password",
 			});
 		}
 
