@@ -82,7 +82,7 @@
             <UIcon
               :name="verification.checks.urlValidation.isValid ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
               :class="verification.checks.urlValidation.isValid ? 'text-green-500' : 'text-red-500'"
-              class="h-5 w-5 flex-shrink-0 mt-0.5"
+              class="h-5 w-5 shrink-0 mt-0.5"
             />
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium">URL Validation</div>
@@ -101,7 +101,7 @@
             <UIcon
               :name="verification.checks.dnsCheck.isValid ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
               :class="verification.checks.dnsCheck.isValid ? 'text-green-500' : 'text-red-500'"
-              class="h-5 w-5 flex-shrink-0 mt-0.5"
+              class="h-5 w-5 shrink-0 mt-0.5"
             />
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium">DNS Resolution</div>
@@ -120,7 +120,7 @@
             <UIcon
               :name="verification.checks.sslCheck.isValid ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
               :class="verification.checks.sslCheck.isValid ? 'text-green-500' : 'text-red-500'"
-              class="h-5 w-5 flex-shrink-0 mt-0.5"
+              class="h-5 w-5 shrink-0 mt-0.5"
             />
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium">SSL/TLS Certificate</div>
@@ -139,7 +139,7 @@
             <UIcon
               :name="verification.checks.phishingCheck.isPhishing ? 'i-heroicons-x-circle' : 'i-heroicons-check-circle'"
               :class="verification.checks.phishingCheck.isPhishing ? 'text-red-500' : 'text-green-500'"
-              class="h-5 w-5 flex-shrink-0 mt-0.5"
+              class="h-5 w-5 shrink-0 mt-0.5"
             />
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium">Phishing Detection</div>
@@ -157,7 +157,7 @@
             <UIcon
               :name="verification.checks.malwareCheck.isSafe ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
               :class="verification.checks.malwareCheck.isSafe ? 'text-green-500' : 'text-red-500'"
-              class="h-5 w-5 flex-shrink-0 mt-0.5"
+              class="h-5 w-5 shrink-0 mt-0.5"
             />
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium">Malware Scan</div>
