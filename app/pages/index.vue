@@ -300,7 +300,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { CreateShortLinkResponse } from "~/server/types/index.js";
+import { CreateShortLinkResponse } from "~/server/schemas";
 
 const showAuthModal = ref(false);
 const showUserMenu = ref(false);

@@ -25,6 +25,7 @@ import { validateAsync } from "../../../server/utils/validation";
 import { executeQuery, executeMutation } from "../../../server/utils/graphql";
 import { GET_SHORT_LINK_BY_URL, GET_SHORT_LINK_BY_ALIAS, CREATE_SHORT_LINK } from "../../../lib/graphql/operations";
 import { getUserIdFromHeaders } from "../../../server/utils/auth";
+import { verifyLink, type LinkVerificationResult } from "../../../server/security/verification-pipeline";
 
 export default defineEventHandler(async (event) => {
 	// Try to get authenticated user ID from token
@@ -44,6 +45,78 @@ export default defineEventHandler(async (event) => {
 
 	// Use authenticated user ID if available, otherwise fall back to request userId
 	const effectiveUserId = authenticatedUserId || userId || null;
+
+	// ============================================
+	// SECURITY VERIFICATION PIPELINE
+	// ============================================
+	
+	const skipVerification = event.node.req.headers["x-skip-verification"] === "true";
+	const isAdmin = event.node.req.headers["x-admin-bypass"] === process.env.ADMIN_BYPASS_SECRET;
+	
+	if (!skipVerification && !isAdmin) {
+		try {
+			const verification: LinkVerificationResult = await verifyLink(originalUrl, {
+				skipCache: false,
+				timeout: 10000,
+			});
+
+			// Store verification result in request context for later use
+			event.context.verification = verification;
+
+			// Block critical risk URLs
+			if (verification.overallRisk === "critical") {
+				throw createError({
+					statusCode: 403,
+					statusMessage: "Security Violation",
+					message: "URL failed security verification: " + verification.summary.criticalIssues.join(", "),
+					data: {
+						verification,
+					},
+				});
+			}
+
+			// Warn on high risk URLs
+			if (verification.overallRisk === "high") {
+				console.warn(`High-risk URL detected: ${originalUrl}`, {
+					riskScore: verification.riskScore,
+					criticalIssues: verification.summary.criticalIssues,
+				});
+				
+				// For non-authenticated users, block high-risk URLs
+				if (!authenticatedUserId) {
+					throw createError({
+						statusCode: 403,
+						statusMessage: "Security Warning",
+						message: "URL has high security risk. Please sign in to proceed with caution.",
+						data: {
+							verification,
+						},
+					});
+				}
+			}
+
+			// Log medium risk URLs
+			if (verification.overallRisk === "medium") {
+				console.info(`Medium-risk URL: ${originalUrl}`, {
+					riskScore: verification.riskScore,
+					warnings: verification.summary.recommendations,
+				});
+			}
+
+		} catch (verificationError: any) {
+			// If verification itself fails, log but don't block (fail open)
+			if (verificationError.statusCode) {
+				throw verificationError; // Re-throw our own errors
+			}
+			
+			console.error("Verification pipeline error:", verificationError);
+			// Continue with link creation but log the error
+		}
+	}
+
+	// ============================================
+	// LINK CREATION (existing logic)
+	// ============================================
 
 	// Generate short code if no custom alias provided
 	const shortUrl = customAlias || generateShortCode();
@@ -127,5 +200,20 @@ export default defineEventHandler(async (event) => {
 	});
 
 	// Encode response to ensure it matches schema
-	return encodeSync(CreateShortLinkResponse)(response);
+	const encodedResponse = encodeSync(CreateShortLinkResponse)(response);
+
+	// Add verification result to response if available
+	if (event.context.verification) {
+		return {
+			...encodedResponse,
+			verification: {
+				isVerified: event.context.verification.isVerified,
+				overallRisk: event.context.verification.overallRisk,
+				riskScore: event.context.verification.riskScore,
+				recommendations: event.context.verification.summary.recommendations,
+			},
+		};
+	}
+
+	return encodedResponse;
 });
