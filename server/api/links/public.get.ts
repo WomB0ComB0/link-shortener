@@ -29,6 +29,11 @@ const GET_PUBLIC_LINKS = `
       original_url
       custom_alias
       created_at
+      clicks_aggregate {
+        aggregate {
+          count
+        }
+      }
     }
   }
 `;
@@ -44,6 +49,11 @@ export default defineEventHandler(async (event) => {
 			original_url: string;
 			custom_alias: string | null;
 			created_at: string;
+			clicks_aggregate: {
+				aggregate: {
+					count: number;
+				};
+			};
 		}>;
 	}>(GET_PUBLIC_LINKS, { limit });
 
@@ -57,5 +67,6 @@ export default defineEventHandler(async (event) => {
 		originalUrl: link.original_url,
 		customAlias: link.custom_alias,
 		createdAt: link.created_at,
+		totalClicks: link.clicks_aggregate.aggregate.count,
 	}));
 });

@@ -49,7 +49,7 @@
         </div>
 
         <!-- Links Grid -->
-        <LinksGrid v-if="userLinks.length > 0" :links="userLinks" />
+        <LinksGrid v-if="userLinks.length > 0" :links="userLinks" :show-analytics="true" />
 
         <!-- Empty State -->
         <div v-else class="text-center py-16">

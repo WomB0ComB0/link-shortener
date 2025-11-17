@@ -14,15 +14,25 @@
           </div>
         </div>
         
-        <UButton
-          color="primary"
-          variant="ghost"
-          size="xs"
-          icon="i-heroicons-clipboard-document"
-          @click="copyLink(link.shortUrl)"
-        >
-          {{ copied ? 'Copied!' : 'Copy' }}
-        </UButton>
+        <div class="flex items-center gap-1">
+          <UButton
+            v-if="showAnalytics"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-heroicons-chart-bar"
+            @click="openAnalytics"
+          />
+          <UButton
+            color="primary"
+            variant="ghost"
+            size="xs"
+            icon="i-heroicons-clipboard-document"
+            @click="copyLink(link.shortUrl)"
+          >
+            {{ copied ? 'Copied!' : 'Copy' }}
+          </UButton>
+        </div>
       </div>
 
       <!-- Original URL -->
@@ -45,9 +55,16 @@
           <span>{{ formatDate(link.createdAt) }}</span>
         </div>
         
-        <div v-if="link.customAlias" class="flex items-center gap-1">
-          <UIcon name="i-heroicons-tag" class="h-3 w-3" />
-          <span>Custom</span>
+        <div class="flex items-center gap-3">
+          <div v-if="link.totalClicks !== undefined" class="flex items-center gap-1">
+            <UIcon name="i-heroicons-cursor-arrow-rays" class="h-3 w-3" />
+            <span>{{ link.totalClicks }} {{ link.totalClicks === 1 ? 'click' : 'clicks' }}</span>
+          </div>
+          
+          <div v-if="link.customAlias" class="flex items-center gap-1">
+            <UIcon name="i-heroicons-tag" class="h-3 w-3" />
+            <span>Custom</span>
+          </div>
         </div>
       </div>
     </div>
@@ -58,14 +75,20 @@
 import { ref } from "vue";
 import { useCopyToClipboard } from "../composables";
 
-defineProps<{
+const props = defineProps<{
 	link: {
 		id: string;
 		shortUrl: string;
 		originalUrl: string;
 		customAlias?: string | null;
 		createdAt: string | Date;
+		totalClicks?: number;
 	};
+	showAnalytics?: boolean;
+}>();
+
+const emit = defineEmits<{
+	(e: "viewAnalytics", link: { id: string; shortUrl: string }): void;
 }>();
 
 const copied = ref(false);
@@ -80,6 +103,13 @@ function copyLink(shortUrl: string) {
 	setTimeout(() => {
 		copied.value = false;
 	}, 2000);
+}
+
+function openAnalytics() {
+	emit("viewAnalytics", {
+		id: props.link.id,
+		shortUrl: props.link.shortUrl,
+	});
 }
 
 function formatDate(date: string | Date): string {
