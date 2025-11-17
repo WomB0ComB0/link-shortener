@@ -1,1 +1,1 @@
-export * from './redacted.js'
+export * from "./redacted.js";

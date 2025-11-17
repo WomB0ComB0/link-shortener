@@ -1,0 +1,18 @@
+{
+	"tasks": {
+		"dev": "deno run -A npm:nuxi dev",
+		"build": "deno run -A npm:nuxi build",
+		"generate": "deno run -A npm:nuxi generate",
+		"preview": "deno run -A npm:nuxi preview",
+		"postinstall": "deno run -A npm:nuxi prepare"
+	},
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"jsxImportSource": "vue"
+	},
+	"nodeModulesDir": "auto",
+	"imports": {
+		"@/": "./",
+		"~/": "./"
+	}
+}
