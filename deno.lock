@@ -9,8 +9,9 @@
     "npm:@nuxt/icon@1.12.0": "1.12.0_vue@3.5.13__typescript@5.8.3_@types+node@22.19.1",
     "npm:@nuxt/image@1.10.0": "1.10.0_@upstash+redis@1.34.9",
     "npm:@nuxt/scripts@0.11.6": "0.11.6_@unhead+vue@2.0.8__vue@3.5.13___typescript@5.8.3_nuxt@3.16.2__@types+node@22.19.1__vue@3.5.13___typescript@5.8.3__vue-router@4.5.0___vue@3.5.13____typescript@5.8.3__@upstash+redis@1.34.9__jiti@2.6.1_vue@3.5.13__typescript@5.8.3_@types+node@22.19.1_@upstash+redis@1.34.9",
-    "npm:@nuxt/test-utils@3.17.2": "3.17.2_vitest@3.1.2__@types+node@22.19.1__vite@6.3.3___@types+node@22.19.1___picomatch@4.0.2___jiti@2.6.1_@types+node@22.19.1",
+    "npm:@nuxt/test-utils@3.17.2": "3.17.2_@playwright+test@1.56.1_vitest@3.1.2__@types+node@22.19.1__vite@6.3.3___@types+node@22.19.1___picomatch@4.0.2___jiti@2.6.1_@types+node@22.19.1",
     "npm:@nuxt/ui@^3.1.0": "3.1.0_typescript@5.8.3_vue-router@4.5.0__vue@3.5.13___typescript@5.8.3_vue@3.5.13__typescript@5.8.3_axios@1.13.2_fuse.js@7.1.0_tailwindcss@4.1.17_@nuxt+kit@3.16.2_@vueuse+core@13.1.0__vue@3.5.13___typescript@5.8.3__typescript@5.8.3_reka-ui@2.2.0__vue@3.5.13___typescript@5.8.3__typescript@5.8.3_@upstash+redis@1.34.9_@types+node@22.19.1",
+    "npm:@playwright/test@^1.56.1": "1.56.1",
     "npm:@types/deno@^2.5.0": "2.5.0",
     "npm:@types/node@^22.10.2": "22.19.1",
     "npm:@types/url-parse@^1.4.11": "1.4.11",
@@ -2219,11 +2220,12 @@
         "vue@3.5.13"
       ]
     },
-    "@nuxt/test-utils@3.17.2_vitest@3.1.2__@types+node@22.19.1__vite@6.3.3___@types+node@22.19.1___picomatch@4.0.2___jiti@2.6.1_@types+node@22.19.1": {
+    "@nuxt/test-utils@3.17.2_@playwright+test@1.56.1_vitest@3.1.2__@types+node@22.19.1__vite@6.3.3___@types+node@22.19.1___picomatch@4.0.2___jiti@2.6.1_@types+node@22.19.1": {
       "integrity": "sha512-i1NiWsJx8sv8Zg8z3WD7ITehMi9s8DaR6ArgmDHaKkQ6RJSaVhrPKyGBTv3gzdoF8CHUKa3MNhdX62JWblvLMg==",
       "dependencies": [
         "@nuxt/kit@3.16.2",
         "@nuxt/schema",
+        "@playwright/test",
         "c12@3.0.3_magicast@0.3.5",
         "consola",
         "defu",
@@ -2247,10 +2249,11 @@
         "unplugin@2.3.2",
         "vite@6.3.3_@types+node@22.19.1_picomatch@4.0.2_jiti@2.6.1",
         "vitest",
-        "vitest-environment-nuxt@1.0.1_vitest@3.1.2__@types+node@22.19.1__vite@6.3.3___@types+node@22.19.1___picomatch@4.0.2___jiti@2.6.1_@types+node@22.19.1",
+        "vitest-environment-nuxt@1.0.1_@playwright+test@1.56.1_vitest@3.1.2__@types+node@22.19.1__vite@6.3.3___@types+node@22.19.1___picomatch@4.0.2___jiti@2.6.1_@types+node@22.19.1",
         "vue@3.5.13_typescript@5.8.3"
       ],
       "optionalPeers": [
+        "@playwright/test",
         "vitest"
       ]
     },
@@ -2535,6 +2538,13 @@
     },
     "@pkgjs/parseargs@0.11.0": {
       "integrity": "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="
+    },
+    "@playwright/test@1.56.1": {
+      "integrity": "sha512-vSMYtL/zOcFpvJCW71Q/OEGQb7KYBPAdKh35WNSkaZA75JlAO8ED8UN6GUNTm3drWomcbcqRPFqQbLae8yBTdg==",
+      "dependencies": [
+        "playwright"
+      ],
+      "bin": true
     },
     "@pnpm/config.env-replace@1.1.0": {
       "integrity": "sha512-htyl8TWnKL7K/ESFa1oW2UB5lVDxuF5DpM7tBi6Hu2LNL3mWkIzNLG6N4zoCUP1lCKNxWy/3iu8mS8MvToGd6w=="
@@ -4348,7 +4358,7 @@
         "readdirp@3.6.0"
       ],
       "optionalDependencies": [
-        "fsevents"
+        "fsevents@2.3.3"
       ]
     },
     "chokidar@4.0.3": {
@@ -6027,6 +6037,11 @@
     },
     "fs.realpath@1.0.0": {
       "integrity": "sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw=="
+    },
+    "fsevents@2.3.2": {
+      "integrity": "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==",
+      "os": ["darwin"],
+      "scripts": true
     },
     "fsevents@2.3.3": {
       "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
@@ -8660,6 +8675,20 @@
         "pathe@2.0.3"
       ]
     },
+    "playwright-core@1.56.1": {
+      "integrity": "sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==",
+      "bin": true
+    },
+    "playwright@1.56.1": {
+      "integrity": "sha512-aFi5B0WovBHTEvpM3DzXTUaeN6eN0qWnTkKx4NQaH4Wvcmc153PdaY2UBdSYKaGYw+UyWXSVyxDUg5DoPEttjw==",
+      "dependencies": [
+        "playwright-core"
+      ],
+      "optionalDependencies": [
+        "fsevents@2.3.2"
+      ],
+      "bin": true
+    },
     "portfinder@1.0.38": {
       "integrity": "sha512-rEwq/ZHlJIKw++XtLAO8PPuOQA/zaPJOZJ37BVuN97nLpMJeuDVLVGRwbFoBgLudgdTMP2hdRJP++H+8QOA3vg==",
       "dependencies": [
@@ -9440,7 +9469,7 @@
     "rollup@2.79.2": {
       "integrity": "sha512-fS6iqSPZDs3dr/y7Od6y5nha8dW1YnbgtsyotCVvoFGKbERG++CVRFv1meyGDE1SNItQA8BrnCw7ScdAhRJ3XQ==",
       "optionalDependencies": [
-        "fsevents"
+        "fsevents@2.3.3"
       ],
       "bin": true
     },
@@ -9470,7 +9499,7 @@
         "@rollup/rollup-win32-arm64-msvc",
         "@rollup/rollup-win32-ia32-msvc",
         "@rollup/rollup-win32-x64-msvc",
-        "fsevents"
+        "fsevents@2.3.3"
       ],
       "bin": true
     },
@@ -10995,9 +11024,6 @@
         "fdir@6.4.4",
         "postcss"
       ],
-      "optionalDependencies": [
-        "fsevents"
-      ],
       "bin": true
     },
     "vite@6.3.3_@types+node@22.19.1_jiti@2.6.1_picomatch@4.0.2": {
@@ -11013,7 +11039,7 @@
         "tinyglobby@0.2.13_picomatch@4.0.2"
       ],
       "optionalDependencies": [
-        "fsevents"
+        "fsevents@2.3.3"
       ],
       "optionalPeers": [
         "@types/node@22.19.1",
@@ -11034,7 +11060,7 @@
         "tinyglobby@0.2.13_picomatch@4.0.2"
       ],
       "optionalDependencies": [
-        "fsevents"
+        "fsevents@2.3.3"
       ],
       "optionalPeers": [
         "@types/node@22.19.1",
@@ -11048,7 +11074,7 @@
         "@nuxt/test-utils@3.17.2"
       ]
     },
-    "vitest-environment-nuxt@1.0.1_vitest@3.1.2__@types+node@22.19.1__vite@6.3.3___@types+node@22.19.1___picomatch@4.0.2___jiti@2.6.1_@types+node@22.19.1": {
+    "vitest-environment-nuxt@1.0.1_@playwright+test@1.56.1_vitest@3.1.2__@types+node@22.19.1__vite@6.3.3___@types+node@22.19.1___picomatch@4.0.2___jiti@2.6.1_@types+node@22.19.1": {
       "integrity": "sha512-eBCwtIQriXW5/M49FjqNKfnlJYlG2LWMSNFsRVKomc8CaMqmhQPBS5LZ9DlgYL9T8xIVsiA6RZn2lk7vxov3Ow==",
       "dependencies": [
         "@nuxt/test-utils@3.17.2"
@@ -11818,6 +11844,7 @@
         "npm:@nuxt/scripts@0.11.6",
         "npm:@nuxt/test-utils@3.17.2",
         "npm:@nuxt/ui@^3.1.0",
+        "npm:@playwright/test@^1.56.1",
         "npm:@types/deno@^2.5.0",
         "npm:@types/node@^22.10.2",
         "npm:@types/url-parse@^1.4.11",
