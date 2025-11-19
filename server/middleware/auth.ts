@@ -47,18 +47,15 @@ export default defineEventHandler(async (event: H3Event) => {
 			return;
 		}
 
-		// Fall back to master password
-		const authHeader = getHeader(event, "x-master-password");
-		const body =
-			event.method !== "GET" ? await readBody(event).catch(() => ({})) : {};
-		const masterPassword = authHeader || body.masterPassword;
+		// Fall back to master password (only check header, not body to avoid consuming the stream)
+		const masterPassword = getHeader(event, "x-master-password");
 
 		if (!masterPassword) {
 			throw createError({
 				statusCode: 401,
 				statusMessage: "Unauthorized",
 				message:
-					"Authentication required: provide either Bearer token or master password",
+					"Authentication required: provide either Bearer token or x-master-password header",
 			});
 		}
 

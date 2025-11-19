@@ -1,0 +1,293 @@
+# Links - URL Shortener
+
+> Fast, secure short links with powerful analytics
+
+## Overview
+
+Links is a Progressive Web App (PWA) for creating and managing shortened URLs. Built with Nuxt 3, it offers a modern, responsive interface with offline support and advanced features.
+
+## Key Features
+
+- **URL Shortening**: Create short, memorable links instantly
+- **Custom Aliases**: Choose your own link names
+- **Analytics**: Track clicks and view detailed statistics
+- **API Access**: Programmatic link creation with API keys
+- **Offline Support**: Full PWA with offline capabilities
+- **Secure**: Built-in malware detection and SSL verification
+- **Expiring Links**: Set automatic expiration dates
+- **Authentication**: User accounts with Firebase Auth
+- **Dashboard**: Manage all your links in one place
+
+## Technology Stack
+
+### Frontend
+- **Framework**: Nuxt 3.16.2
+- **UI**: Nuxt UI v3 (Tailwind CSS + Reka UI)
+- **Language**: TypeScript
+- **Icons**: Heroicons
+- **Fonts**: DM Sans, DM Mono, DM Serif Display
+
+### Backend
+- **Runtime**: Node.js 22+
+- **Server**: Nitro 2.11.9
+- **Database**: Hasura GraphQL (PostgreSQL)
+- **Authentication**: Firebase Auth
+- **Rate Limiting**: Upstash Redis
+
+### PWA & Performance
+- **Service Worker**: Vite PWA Plugin
+- **Caching**: Workbox strategies
+- **Analytics**: Umami Analytics
+- **Build Tool**: Vite 6.3.3
+
+### Security
+- **URL Validation**: DNS, SSL, malware, phishing detection
+- **Rate Limiting**: Upstash rate limiter
+- **Authentication**: JWT tokens
+- **HTTPS**: Required for all connections
+
+## API Endpoints
+
+### Public Endpoints
+- `POST /api/links/create` - Create a new short link
+- `GET /api/links/public` - Get public links
+- `GET /api/[code]` - Redirect to original URL
+
+### Authenticated Endpoints
+- `GET /api/links/me` - Get user's links
+- `GET /api/links/analytics` - Get link analytics
+- `POST /api/keys/create` - Create API key
+- `GET /api/keys/list` - List API keys
+- `POST /api/keys/revoke` - Revoke API key
+
+### Authentication
+- `POST /api/auth/register` - Create account
+- `POST /api/auth/login` - Login
+- `GET /api/auth/me` - Get current user
+
+## Project Structure
+
+```
+link-shortener/
+├── app/
+│   ├── assets/css/        # Stylesheets (OKLCH colors)
+│   ├── components/        # Vue components
+│   ├── composables/       # Vue composables
+│   ├── config/            # App configuration
+│   ├── constants/         # Constants and config
+│   ├── layouts/           # Nuxt layouts
+│   └── pages/             # Application pages
+├── server/
+│   ├── api/               # API endpoints
+│   ├── classes/           # Server classes
+│   ├── middleware/        # Server middleware
+│   ├── schemas/           # Validation schemas
+│   ├── security/          # Security utilities
+│   ├── services/          # Business logic
+│   └── utils/             # Helper functions
+├── public/
+│   ├── assets/            # Static assets
+│   ├── pwa/               # PWA icons and config
+│   ├── manifest.json      # PWA manifest
+│   ├── sitemap.xml        # SEO sitemap
+│   ├── robots.txt         # Crawler rules
+│   ├── humans.txt         # Team credits
+│   └── llms.txt           # This file
+└── docs/                  # Documentation
+
+```
+
+## Design System
+
+### Colors (OKLCH)
+- **Primary**: Purple (`oklch(52% 0.12 285deg)`)
+- **Background**: Dark (`oklch(16% 0 285deg)`)
+- **Foreground**: Light (`oklch(94% 0.03 285deg)`)
+- **Accent**: Purple variants
+- **Semantic**: Success, error, warning, info
+
+### Typography
+- **Headings**: DM Serif Display
+- **Body**: DM Sans
+- **Code**: DM Mono
+
+### Responsive Breakpoints
+- **Mobile**: < 640px
+- **Tablet**: 640px - 1024px
+- **Desktop**: > 1024px
+
+## Features in Detail
+
+### Link Creation
+- URL validation with security checks
+- Custom alias support (letters, numbers, hyphens)
+- Expiration date setting
+- Master password or authentication required
+- Automatic malware/phishing detection
+
+### Analytics
+- Total clicks tracking
+- Time-based analytics
+- User agent detection
+- Geographic data (planned)
+- Referrer tracking (planned)
+
+### API Keys
+- Create multiple API keys
+- Name and manage keys
+- Revoke access anytime
+- Secure key masking
+- Last used tracking
+
+### PWA Features
+- Install on any device
+- Offline functionality
+- Auto-updates
+- App shortcuts (Create, Dashboard)
+- Platform-specific icons
+- Splash screens
+
+### Security Features
+- DNS validation
+- SSL certificate checking
+- Malware URL detection
+- Phishing URL detection
+- Rate limiting
+- JWT authentication
+- Master password system
+
+## Environment Variables
+
+Required environment variables:
+
+```bash
+# Hasura
+HASURA_GRAPHQL_ENDPOINT=
+HASURA_GRAPHQL_ADMIN_SECRET=
+
+# Firebase
+NUXT_PUBLIC_FB_API_KEY=
+NUXT_PUBLIC_FB_AUTH_DOMAIN=
+NUXT_PUBLIC_FB_PROJECT_ID=
+NUXT_PUBLIC_FB_STORAGE_BUCKET=
+NUXT_PUBLIC_FB_MESSAGING_SENDER_ID=
+NUXT_PUBLIC_FB_APP_ID=
+NUXT_PUBLIC_FB_MEASUREMENT_ID=
+
+# Security
+MASTER_PASSWORD_HASH=
+```
+
+## Installation
+
+```bash
+# Install dependencies
+bun install
+
+# Run development server
+bun run dev
+
+# Build for production
+bun run build
+
+# Preview production build
+bun run preview
+```
+
+## Usage Examples
+
+### Creating a Link (Authenticated)
+```javascript
+const response = await fetch('/api/links/create', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authToken}`
+  },
+  body: JSON.stringify({
+    originalUrl: 'https://example.com/very/long/url',
+    customAlias: 'my-link', // optional
+    expiresAt: '2025-12-31T23:59:59Z' // optional
+  })
+});
+```
+
+### Creating a Link (Anonymous with Master Password)
+```javascript
+const response = await fetch('/api/links/create', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-master-password': 'your-master-password'
+  },
+  body: JSON.stringify({
+    originalUrl: 'https://example.com/very/long/url'
+  })
+});
+```
+
+### Using an API Key
+```javascript
+const response = await fetch('/api/links/create', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`
+  },
+  body: JSON.stringify({
+    originalUrl: 'https://example.com/very/long/url'
+  })
+});
+```
+
+## Performance
+
+- **Lighthouse Score**: 90+ across all categories
+- **PWA Score**: 100/100
+- **First Contentful Paint**: < 1.5s
+- **Time to Interactive**: < 3.5s
+- **Cumulative Layout Shift**: < 0.1
+
+## Browser Support
+
+- Chrome/Edge: Latest 2 versions
+- Firefox: Latest 2 versions
+- Safari: Latest 2 versions
+- Mobile browsers: iOS Safari, Chrome Mobile
+
+## Contributing
+
+This is a personal project, but suggestions and bug reports are welcome:
+- GitHub: https://github.com/WomB0ComB0/link-shortener
+- Email: mike@mikeodnis.dev
+
+## License
+
+Proprietary - All rights reserved
+
+## Credits
+
+- **Developer**: Mike Odnis
+- **Framework**: Nuxt Team
+- **UI Components**: Nuxt UI Team
+- **Icons**: Heroicons
+- **Fonts**: Google Fonts (DM Sans family)
+- **PWA**: Vite PWA Plugin
+
+## Contact
+
+- **Website**: https://links.mikeodnis.dev
+- **Developer**: https://mikeodnis.dev
+- **GitHub**: https://github.com/WomB0ComB0
+- **Email**: mike@mikeodnis.dev
+
+## Additional Resources
+
+- **Documentation**: /docs/
+- **PWA Guide**: /docs/PWA.md
+- **SEO Files**: /docs/SEO-FILES.md
+- **API Documentation**: Coming soon
+
+---
+
+> Built with 💜 using Nuxt 3 • Last updated: November 18, 2025

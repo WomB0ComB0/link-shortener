@@ -4,11 +4,15 @@
 		"build": "deno run -A npm:nuxi build",
 		"generate": "deno run -A npm:nuxi generate",
 		"preview": "deno run -A npm:nuxi preview",
-		"postinstall": "deno run -A npm:nuxi prepare"
+		"postinstall": "deno run -A npm:nuxi prepare",
+		"test:api": "deno run -A scripts/test-api.ts",
+		"seed:db": "deno run -A scripts/seed-database.ts",
+		"seed:db:clear": "deno run -A scripts/seed-database.ts -- --clear"
 	},
 	"compilerOptions": {
 		"jsx": "react-jsx",
-		"jsxImportSource": "vue"
+		"jsxImportSource": "vue",
+		"lib": ["deno.ns", "deno.unstable"]
 	},
 	"nodeModulesDir": "auto",
 	"imports": {

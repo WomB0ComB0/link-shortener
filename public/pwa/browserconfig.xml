@@ -1,2 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<browserconfig><msapplication><tile><square70x70logo src="./windows/ms-icon-70x70.png"/><square150x150logo src="./windows/ms-icon-150x150.png"/><square310x310logo src="./windows/ms-icon-310x310.png"/><TileColor>#d6b3f0</TileColor></tile></msapplication></browserconfig>
+<browserconfig>
+  <msapplication>
+    <tile>
+      <square70x70logo src="/pwa/windows11/SmallTile.scale-100.png"/>
+      <square150x150logo src="/pwa/windows11/Square150x150Logo.scale-100.png"/>
+      <square310x310logo src="/pwa/windows11/LargeTile.scale-100.png"/>
+      <wide310x150logo src="/pwa/windows11/Wide310x150Logo.scale-100.png"/>
+      <TileColor>#8b5cf6</TileColor>
+    </tile>
+  </msapplication>
+</browserconfig>

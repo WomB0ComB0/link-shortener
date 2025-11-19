@@ -119,9 +119,9 @@ export const pwa: PWA = {
 	registerType: "autoUpdate",
 	scope,
 	base: scope,
-	includeAssets: ["/assets/svgs/logo.svg"],
+	includeAssets: ["/assets/svgs/logo.svg", "/favicon.ico"],
 	injectManifest: {
-		globPatterns: ["**/*.{js,css,html,png,svg,ico,json}"],
+		globPatterns: ["**/*.{js,css,html,png,svg,ico,json,woff2}"],
 		swDest: "sw.js",
 	},
 	manifest: {
@@ -130,7 +130,7 @@ export const pwa: PWA = {
 		name: app.name,
 		short_name: app.name,
 		description: app.description,
-		theme_color: "#ffffff",
+		theme_color: "oklch(52% 0.12 285deg)",
 		background_color: "#ffffff",
 		display: "standalone",
 		orientation: "portrait",
@@ -141,9 +141,52 @@ export const pwa: PWA = {
 		publicPath: scope,
 		related_applications: [],
 		prefer_related_applications: false,
-		categories: [],
-		display_override: ["window-controls-overlay"],
-		shortcuts: [],
+		categories: ["utilities", "productivity"],
+		display_override: ["window-controls-overlay", "standalone"],
+		shortcuts: [
+			{
+				name: "Create Link",
+				short_name: "Create",
+				description: "Create a new short link",
+				url: "/create",
+				icons: [
+					{
+						src: "/pwa/android/android-launchericon-192-192.png",
+						sizes: "192x192",
+						type: "image/png",
+					},
+				],
+			},
+			{
+				name: "Dashboard",
+				short_name: "Dashboard",
+				description: "View your links",
+				url: "/dashboard",
+				icons: [
+					{
+						src: "/pwa/android/android-launchericon-192-192.png",
+						sizes: "192x192",
+						type: "image/png",
+					},
+				],
+			},
+		],
+		screenshots: [
+			{
+				src: "/assets/images/screen-shot-narrow.png",
+				sizes: "640x1136",
+				type: "image/png",
+				form_factor: "narrow",
+				label: "Links - Mobile View",
+			},
+			{
+				src: "/assets/images/screen-shot-wide.png",
+				sizes: "1920x1080",
+				type: "image/png",
+				form_factor: "wide",
+				label: "Links - Desktop View",
+			},
+		],
 		iarc_rating_id: "",
 		share_target: {
 			action: "/",
@@ -865,19 +908,21 @@ export const pwa: PWA = {
 		],
 	},
 	workbox: {
-		globPatterns: ["**/*.{js,css,html,txt,png,ico,svg}"],
-		navigateFallbackDenylist: [/^\/api\//],
+		globPatterns: ["**/*.{js,css,html,txt,png,ico,svg,woff2}"],
+		navigateFallbackDenylist: [/^\/api\//, /^\/sw\.js$/, /^\/manifest\.webmanifest$/],
 		navigateFallback: "/",
 		cleanupOutdatedCaches: true,
+		skipWaiting: true,
+		clientsClaim: true,
 		runtimeCaching: [
 			{
-				urlPattern: /^https:\/\/fonts.googleapis.com\/.*/i,
+				urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
 				handler: "CacheFirst",
 				options: {
 					cacheName: "google-fonts-cache",
 					expiration: {
 						maxEntries: 10,
-						maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
+						maxAgeSeconds: 60 * 60 * 24 * 365,
 					},
 					cacheableResponse: {
 						statuses: [0, 200],
@@ -885,13 +930,56 @@ export const pwa: PWA = {
 				},
 			},
 			{
-				urlPattern: /^https:\/\/fonts.gstatic.com\/.*/i,
+				urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
 				handler: "CacheFirst",
 				options: {
 					cacheName: "gstatic-fonts-cache",
 					expiration: {
 						maxEntries: 10,
-						maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
+						maxAgeSeconds: 60 * 60 * 24 * 365,
+					},
+					cacheableResponse: {
+						statuses: [0, 200],
+					},
+				},
+			},
+			{
+				urlPattern: /^https:\/\/cdn\.tailwindcss\.com\/.*/i,
+				handler: "CacheFirst",
+				options: {
+					cacheName: "tailwind-cache",
+					expiration: {
+						maxEntries: 5,
+						maxAgeSeconds: 60 * 60 * 24 * 30,
+					},
+					cacheableResponse: {
+						statuses: [0, 200],
+					},
+				},
+			},
+			{
+				urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+				handler: "CacheFirst",
+				options: {
+					cacheName: "image-cache",
+					expiration: {
+						maxEntries: 50,
+						maxAgeSeconds: 60 * 60 * 24 * 30,
+					},
+					cacheableResponse: {
+						statuses: [0, 200],
+					},
+				},
+			},
+			{
+				urlPattern: /^\/api\/.*/i,
+				handler: "NetworkFirst",
+				options: {
+					cacheName: "api-cache",
+					networkTimeoutSeconds: 10,
+					expiration: {
+						maxEntries: 50,
+						maxAgeSeconds: 60 * 5, // 5 minutes
 					},
 					cacheableResponse: {
 						statuses: [0, 200],

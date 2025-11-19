@@ -39,10 +39,18 @@ export default defineNuxtConfig({
 			viewport: "width=device-width,initial-scale=1",
 			link: [
 				{ rel: "icon", href: "/favicon.ico", sizes: "any" },
-				{ rel: "icon", type: "image/svg+xml", href: "/nuxt.svg" },
-				{ rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+				{ rel: "icon", type: "image/svg+xml", href: "/assets/svgs/logo.svg" },
+				{ rel: "apple-touch-icon", href: "/pwa/ios/180.png" },
+				{ rel: "mask-icon", href: "/assets/svgs/logo.svg", color: "oklch(52% 0.12 285deg)" },
 			],
-			script: [{ src: "https://cdn.tailwindcss.com", defer: true }],
+			script: [
+				{ src: "https://cdn.tailwindcss.com", defer: true },
+				{
+					src: "https://cloud.umami.is/script.js",
+					defer: true,
+					"data-website-id": "e7be89ea-5e5f-463b-97c3-95457c7cb00a",
+				},
+			],
 			meta: [
 				{ name: "viewport", content: "width=device-width, initial-scale=1" },
 				{ name: "description", content: app.description },
@@ -51,14 +59,34 @@ export default defineNuxtConfig({
 					content: "black-translucent",
 				},
 				{
+					name: "apple-mobile-web-app-capable",
+					content: "yes",
+				},
+				{
+					name: "apple-mobile-web-app-title",
+					content: app.name,
+				},
+				{
+					name: "mobile-web-app-capable",
+					content: "yes",
+				},
+				{
 					name: "theme-color",
 					media: "(prefers-color-scheme: light)",
-					content: "white",
+					content: "#ffffff",
 				},
 				{
 					name: "theme-color",
 					media: "(prefers-color-scheme: dark)",
-					content: "#222222",
+					content: "#1a1a1a",
+				},
+				{
+					name: "msapplication-TileColor",
+					content: "oklch(52% 0.12 285deg)",
+				},
+				{
+					name: "msapplication-config",
+					content: "/pwa/browserconfig.xml",
 				},
 			],
 		},
@@ -88,6 +116,21 @@ export default defineNuxtConfig({
 			crawlLinks: false,
 			routes: ["/"],
 			ignore: ["/hi"], // TODO: 🚩
+		},
+	},
+
+	ui: {
+		theme: {
+			colors: [
+				"primary",
+				"secondary",
+				"tertiary",
+				"info",
+				"success",
+				"warning",
+				"error",
+				"neutral",
+			],
 		},
 	},
 

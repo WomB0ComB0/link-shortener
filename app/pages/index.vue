@@ -49,40 +49,15 @@
       </template>
     </AppHeader>
 
-    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
-      <!-- Hero section -->
-      <div class="mb-16 text-center">
-        <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-4 text-balance">
-          Share links, <span class="text-blue-600">shortened</span>
-        </h1>
-        <p class="text-xl text-gray-600 max-w-2xl mx-auto text-balance mb-8">
-          Create fast, secure short links with powerful analytics. Perfect for sharing on social media, messaging, and more.
-        </p>
-        <NuxtLink to="/create">
-          <UButton
-            size="lg"
-            class="rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8"
-            icon="i-heroicons-sparkles"
-          >
-            Get Started
-          </UButton>
-        </NuxtLink>
-      </div>
-
+    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16">
       <!-- Links grid section -->
-      <div>
-        <div class="mb-8">
-          <h2 class="text-3xl font-bold text-gray-900 mb-2">Recent Links</h2>
-          <p class="text-gray-600">Browse the latest short links created on LinkShort</p>
-        </div>
         <LinksGrid :links="publicLinks" />
-      </div>
     </main>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useFetcher } from "../composables";
 
 const { get: fetchGet } = useFetcher();
@@ -92,64 +67,68 @@ const currentUser = ref<any>(null);
 const publicLinks = ref<any[]>([]);
 
 const isAuthenticated = computed(
-  () => !!authToken.value && !!currentUser.value,
+	() => !!authToken.value && !!currentUser.value,
 );
 
 onMounted(() => {
-  if (process.client) {
-    const token = localStorage.getItem("auth_token");
-    if (token) {
-      authToken.value = token;
-      fetchCurrentUser();
-    }
-  }
-  fetchPublicLinks();
+	if (process.client) {
+		const token = localStorage.getItem("auth_token");
+		if (token) {
+			authToken.value = token;
+			fetchCurrentUser();
+		}
+	}
+	fetchPublicLinks();
 });
 
 async function fetchPublicLinks() {
-  try {
-    const links = await fetchGet("/api/links/public", {
-      retries: 2,
-      timeout: 10000,
-      onError: (error) => {
-        console.error("Failed to fetch public links:", error);
-      },
-    }, { limit: 12 });
-    publicLinks.value = Array.isArray(links) ? links : [];
-  } catch (err) {
-    console.error("Failed to fetch public links:", err);
-    publicLinks.value = [];
-  }
+	try {
+		const links = await fetchGet(
+			"/api/links/public",
+			{
+				retries: 2,
+				timeout: 10000,
+				onError: (error) => {
+					console.error("Failed to fetch public links:", error);
+				},
+			},
+			{ limit: 12 },
+		);
+		publicLinks.value = Array.isArray(links) ? links : [];
+	} catch (err) {
+		console.error("Failed to fetch public links:", err);
+		publicLinks.value = [];
+	}
 }
 
 async function fetchCurrentUser() {
-  if (!authToken.value) return;
+	if (!authToken.value) return;
 
-  try {
-    const user = await fetchGet("/api/auth/me", {
-      headers: {
-        Authorization: `Bearer ${authToken.value}`,
-      },
-      retries: 1,
-      timeout: 5000,
-    });
-    currentUser.value = user;
-  } catch (err) {
-    handleLogout();
-  }
+	try {
+		const user = await fetchGet("/api/auth/me", {
+			headers: {
+				Authorization: `Bearer ${authToken.value}`,
+			},
+			retries: 1,
+			timeout: 5000,
+		});
+		currentUser.value = user;
+	} catch (err) {
+		handleLogout();
+	}
 }
 
 function handleLogout() {
-  authToken.value = null;
-  currentUser.value = null;
+	authToken.value = null;
+	currentUser.value = null;
 
-  if (process.client) {
-    localStorage.removeItem("auth_token");
-  }
+	if (process.client) {
+		localStorage.removeItem("auth_token");
+	}
 }
 
 useSeoMeta({
-  title: "LinkShort - Secure Link Shortener",
-  description: "Create fast, secure short links with powerful analytics.",
+	title: "Links - URL Shortener",
+	description: "Create fast, secure short links with powerful analytics.",
 });
 </script>

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="group relative overflow-hidden rounded-lg border border-border/50 bg-card hover:border-primary/30 transition-all hover:shadow-md p-4"
+    class="group relative overflow-hidden rounded-xl border border-gray-200 bg-white hover:border-purple-200 transition-all hover:shadow-lg p-4"
   >
     <div class="flex flex-col gap-3">
       <!-- Short URL -->
@@ -49,7 +49,7 @@
       </div>
 
       <!-- Metadata -->
-      <div class="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/50">
+      <div class="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-gray-100">
         <div class="flex items-center gap-1">
           <UIcon name="i-heroicons-clock" class="h-3 w-3" />
           <span>{{ formatDate(link.createdAt) }}</span>
@@ -87,9 +87,10 @@ const props = defineProps<{
 	showAnalytics?: boolean;
 }>();
 
-const emit = defineEmits<{
-	(e: "viewAnalytics", link: { id: string; shortUrl: string }): void;
-}>();
+const emit =
+	defineEmits<
+		(e: "viewAnalytics", link: { id: string; shortUrl: string }) => void
+	>();
 
 const copied = ref(false);
 const { copyToClipboard } = useCopyToClipboard();

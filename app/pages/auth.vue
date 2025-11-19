@@ -19,50 +19,63 @@
     <!-- Auth Form Container -->
     <div class="flex-1 flex items-center justify-center px-4 py-12">
       <div class="w-full max-w-md">
-        <UCard class="shadow-lg border border-gray-200">
-          <template #header>
-            <div class="flex items-center justify-between">
-              <h3 class="text-xl font-bold text-gray-900">
-                {{ isLogin ? 'Welcome Back' : 'Create Account' }}
-              </h3>
-            </div>
-          </template>
+        <div class="shadow-md bg-white overflow-hidden rounded-xl border border-gray-200">
+          <div class="border-b border-gray-100 px-6 py-5">
+            <h3 class="text-xl font-bold text-gray-900">
+              {{ isLogin ? 'Welcome Back' : 'Create Account' }}
+            </h3>
+          </div>
 
-          <form @submit.prevent="handleSubmit" class="space-y-4">
-            <UFormGroup label="Email" required>
+          <form @submit.prevent="handleSubmit" class="space-y-4 p-6 sm:p-8">
+            <div>
+              <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+                Email <span class="text-red-500">*</span>
+              </label>
               <UInput
+                id="email"
                 v-model="form.email"
                 type="email"
                 placeholder="you@example.com"
                 :disabled="loading"
                 autocomplete="email"
-                class="rounded-lg"
+                class="w-full rounded-lg"
+                size="md"
               />
-            </UFormGroup>
+            </div>
 
-            <UFormGroup label="Password" required>
+            <div>
+              <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+                Password <span class="text-red-500">*</span>
+              </label>
               <UInput
+                id="password"
                 v-model="form.password"
                 type="password"
                 placeholder="••••••••"
                 :disabled="loading"
                 autocomplete="current-password"
-                class="rounded-lg"
+                class="w-full rounded-lg"
+                size="md"
               />
-              <template v-if="!isLogin" #help>
+              <p v-if="!isLogin" class="text-xs text-gray-500 mt-1">
                 At least 8 characters with uppercase, lowercase, and number
-              </template>
-            </UFormGroup>
+              </p>
+            </div>
 
-            <UFormGroup v-if="!isLogin" label="Display Name">
+            <div v-if="!isLogin">
+              <label for="displayName" class="block text-sm font-medium text-gray-700 mb-1">
+                Display Name
+              </label>
               <UInput
+                id="displayName"
                 v-model="form.displayName"
                 placeholder="Your Name"
                 :disabled="loading"
                 autocomplete="name"
-                class="rounded-lg"
+                class="w-full rounded-lg"
+                size="md"
               />
-            </UFormGroup>
+            </div>
 
             <UAlert v-if="error" color="error" :title="error" class="mb-4" />
 
@@ -72,7 +85,8 @@
                 :loading="loading"
                 :disabled="!form.email || !form.password"
                 block
-                class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
+                class="rounded-lg font-semibold"
+                style="background: var(--primary); color: var(--primary-foreground);"
               >
                 {{ isLogin ? 'Login' : 'Create Account' }}
               </UButton>
@@ -89,13 +103,6 @@
               </UButton>
             </div>
           </form>
-        </UCard>
-
-        <!-- Back to home link -->
-        <div class="text-center mt-6">
-          <NuxtLink to="/" class="text-blue-600 hover:underline text-sm font-medium">
-            ← Back to home
-          </NuxtLink>
         </div>
       </div>
     </div>
@@ -113,58 +120,59 @@ const loading = ref(false);
 const error = ref("");
 
 const form = ref({
-  email: "",
-  password: "",
-  displayName: "",
+	email: "",
+	password: "",
+	displayName: "",
 });
 
 function toggleMode() {
-  isLogin.value = !isLogin.value;
-  error.value = "";
+	isLogin.value = !isLogin.value;
+	error.value = "";
 }
 
 async function handleSubmit() {
-  loading.value = true;
-  error.value = "";
+	loading.value = true;
+	error.value = "";
 
-  try {
-    const endpoint = isLogin.value ? "/api/auth/login" : "/api/auth/register";
+	try {
+		const endpoint = isLogin.value ? "/api/auth/login" : "/api/auth/register";
 
-    const response = await fetchPost<{ user: any; token: string }>(
-      endpoint,
-      isLogin.value
-        ? { email: form.value.email, password: form.value.password }
-        : {
-            email: form.value.email,
-            password: form.value.password,
-            displayName: form.value.displayName || undefined,
-          },
-      {
-        retries: 1,
-        timeout: 10000,
-      },
-    );
+		const response = await fetchPost<{ user: any; token: string }>(
+			endpoint,
+			isLogin.value
+				? { email: form.value.email, password: form.value.password }
+				: {
+						email: form.value.email,
+						password: form.value.password,
+						displayName: form.value.displayName || undefined,
+					},
+			{
+				retries: 1,
+				timeout: 10000,
+			},
+		);
 
-    // Save token
-    if (process.client) {
-      localStorage.setItem("auth_token", response.token);
-    }
+		// Save token
+		if (process.client) {
+			localStorage.setItem("auth_token", response.token);
+		}
 
-    // Redirect to dashboard
-    router.push("/dashboard");
-  } catch (err) {
-    if (err instanceof FetcherError) {
-      error.value = String(err.responseData) || err.message || "Authentication failed";
-    } else {
-      error.value = err.message || "Authentication failed";
-    }
-  } finally {
-    loading.value = false;
-  }
+		// Redirect to dashboard
+		router.push("/dashboard");
+	} catch (err) {
+		if (err instanceof FetcherError) {
+			error.value =
+				String(err.responseData) || err.message || "Authentication failed";
+		} else {
+			error.value = err.message || "Authentication failed";
+		}
+	} finally {
+		loading.value = false;
+	}
 }
 
 useSeoMeta({
-  title: "Authentication - LinkShort",
-  description: "Login or create an account to manage your short links.",
+	title: "Authentication",
+	description: "Login or create an account to manage your short links.",
 });
 </script>

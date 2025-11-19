@@ -42,6 +42,7 @@
     "npm:url-parse@^1.5.10": "1.5.10",
     "npm:usehooks-ts@^3.1.1": "3.1.1_react@19.1.0",
     "npm:validator@^13.12.0": "13.15.23",
+    "npm:vite-plugin-pwa@^1.1.0": "1.1.0_vite@6.3.3__@types+node@22.19.1__picomatch@4.0.2__jiti@2.6.1_workbox-build@7.3.0__ajv@8.17.1__@babel+core@7.26.10__rollup@2.79.2_workbox-window@7.3.0_@types+node@22.19.1",
     "npm:vitest@^3.1.2": "3.1.2_@types+node@22.19.1_vite@6.3.3__@types+node@22.19.1__picomatch@4.0.2__jiti@2.6.1",
     "npm:vue-router@^4.5.0": "4.5.0_vue@3.5.13__typescript@5.8.3",
     "npm:vue@^3.5.13": "3.5.13_typescript@5.8.3"
@@ -3320,7 +3321,7 @@
         "@nuxt/kit@3.16.2",
         "pathe@1.1.2",
         "ufo",
-        "vite-plugin-pwa"
+        "vite-plugin-pwa@1.1.0_vite@6.3.3__@types+node@22.19.1__jiti@2.6.1__picomatch@4.0.2_workbox-build@7.3.0__ajv@8.17.1__@babel+core@7.26.10__rollup@2.79.2_workbox-window@7.3.0_@types+node@22.19.1"
       ]
     },
     "@vitejs/plugin-vue-jsx@4.1.2_vite@6.3.3__@types+node@22.19.1__jiti@2.6.1__picomatch@4.0.2_vue@3.5.13__typescript@5.8.3_@babel+core@7.26.10_@types+node@22.19.1_jiti@2.6.1": {
@@ -10954,13 +10955,24 @@
         "vite-dev-rpc"
       ]
     },
-    "vite-plugin-pwa@1.0.0_vite@6.3.3__@types+node@22.19.1__jiti@2.6.1__picomatch@4.0.2_workbox-build@7.3.0__ajv@8.17.1__@babel+core@7.26.10__rollup@2.79.2_workbox-window@7.3.0_@types+node@22.19.1": {
-      "integrity": "sha512-X77jo0AOd5OcxmWj3WnVti8n7Kw2tBgV1c8MCXFclrSlDV23ePzv2eTDIALXI2Qo6nJ5pZJeZAuX0AawvRfoeA==",
+    "vite-plugin-pwa@1.1.0_vite@6.3.3__@types+node@22.19.1__jiti@2.6.1__picomatch@4.0.2_workbox-build@7.3.0__ajv@8.17.1__@babel+core@7.26.10__rollup@2.79.2_workbox-window@7.3.0_@types+node@22.19.1": {
+      "integrity": "sha512-VsSpdubPzXhHWVINcSx6uHRMpOHVHQcHsef1QgkOlEoaIDAlssFEW88LBq1a59BuokAhsh2kUDJbaX1bZv4Bjw==",
       "dependencies": [
         "debug@4.4.0",
         "pretty-bytes@6.1.1",
         "tinyglobby@0.2.13_picomatch@4.0.2",
         "vite@6.3.3_@types+node@22.19.1_jiti@2.6.1_picomatch@4.0.2",
+        "workbox-build",
+        "workbox-window"
+      ]
+    },
+    "vite-plugin-pwa@1.1.0_vite@6.3.3__@types+node@22.19.1__picomatch@4.0.2__jiti@2.6.1_workbox-build@7.3.0__ajv@8.17.1__@babel+core@7.26.10__rollup@2.79.2_workbox-window@7.3.0_@types+node@22.19.1": {
+      "integrity": "sha512-VsSpdubPzXhHWVINcSx6uHRMpOHVHQcHsef1QgkOlEoaIDAlssFEW88LBq1a59BuokAhsh2kUDJbaX1bZv4Bjw==",
+      "dependencies": [
+        "debug@4.4.0",
+        "pretty-bytes@6.1.1",
+        "tinyglobby@0.2.13_picomatch@4.0.2",
+        "vite@6.3.3_@types+node@22.19.1_picomatch@4.0.2_jiti@2.6.1",
         "workbox-build",
         "workbox-window"
       ]
@@ -11686,6 +11698,9 @@
     "https://deno.land/std@0.214.0/path/windows/separator.ts": "e51c5522140eff4f8402617c5c68a201fdfa3a1a8b28dc23587cff931b665e43",
     "https://deno.land/std@0.214.0/path/windows/to_file_url.ts": "1cd63fd35ec8d1370feaa4752eccc4cc05ea5362a878be8dc7db733650995484",
     "https://deno.land/std@0.214.0/path/windows/to_namespaced_path.ts": "4ffa4fb6fae321448d5fe810b3ca741d84df4d7897e61ee29be961a6aac89a4c",
+    "https://deno.land/std@0.218.0/dotenv/mod.ts": "0180eaeedaaf88647318811cdaa418cc64dc51fb08354f91f5f480d0a1309f7d",
+    "https://deno.land/std@0.218.0/dotenv/parse.ts": "a49ed243bd62ec26f38614042cda4e5e3a47b18337c93b0f9f8556a5c918884b",
+    "https://deno.land/std@0.218.0/dotenv/stringify.ts": "0047ad7068289735d08964046aea267a750c141b494ca0e38831b89be6c020c2",
     "https://deno.land/std@0.224.0/assert/assert.ts": "09d30564c09de846855b7b071e62b5974b001bb72a4b797958fe0660e7849834",
     "https://deno.land/std@0.224.0/assert/assertion_error.ts": "ba8752bd27ebc51f723702fac2f54d3e94447598f54264a6653d6413738a8917",
     "https://deno.land/std@0.224.0/dotenv/mod.ts": "0180eaeedaaf88647318811cdaa418cc64dc51fb08354f91f5f480d0a1309f7d",
@@ -11832,6 +11847,7 @@
         "npm:url-parse@^1.5.10",
         "npm:usehooks-ts@^3.1.1",
         "npm:validator@^13.12.0",
+        "npm:vite-plugin-pwa@^1.1.0",
         "npm:vitest@^3.1.2",
         "npm:vue-router@^4.5.0",
         "npm:vue@^3.5.13"

@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import { FetchHttpClient, HttpClient } from "@effect/platform";
+import { FetchHttpClient, type HttpClient } from "@effect/platform";
 import { Effect, Layer } from "effect";
 import type { FetcherOptions } from "../../lib/fetcher";
 import {
-	FetcherError,
-	ValidationError,
 	del,
+	FetcherError,
 	get,
 	patch,
 	post,
 	put,
+	ValidationError,
 } from "../../lib/fetcher";
 
 /**

@@ -1,0 +1,49 @@
+/* TEAM */
+
+Developer: Mike Odnis
+Site: https://mikeodnis.dev
+Location: Earth
+
+/* THANKS */
+
+Nuxt Team - https://nuxt.com
+Vite PWA - https://vite-pwa-org.netlify.app
+Tailwind CSS - https://tailwindcss.com
+Heroicons - https://heroicons.com
+
+/* SITE */
+
+Language: English
+Doctype: HTML5
+IDE: VS Code
+Components: Vue 3, Nuxt 3
+Standards: PWA, A11y, Semantic HTML
+Fonts: DM Sans, DM Mono, DM Serif Display
+
+/* PWA */
+
+Installable: Yes
+Offline Support: Yes
+Service Worker: Enabled
+Update Strategy: Auto
+Cache Strategy: NetworkFirst + CacheFirst
+
+/* CONTACT */
+
+Website: https://links.mikeodnis.dev
+GitHub: https://github.com/WomB0ComB0
+Email: mike@mikeodnis.dev
+
+                               .     
+                          .    |    .
+                         -o-  |||  -o-
+                          '   |||   '
+                           ,-.|||.-.  
+                          (   |||   )
+                           `-(|||)-'
+                              |||
+                            .-'|'-.
+                            '-._.-'
+                          
+              Links - Fast, Secure URL Shortener
+                    Built with 💜 in 2025

@@ -2,17 +2,17 @@
 const route = useRoute();
 
 // Extract the code from the route params
-const code = Array.isArray(route.params.all) 
-  ? route.params.all[0] 
-  : route.params.all;
+const code = Array.isArray(route.params.all)
+	? route.params.all[0]
+	: route.params.all;
 
 // If we have a code, try to redirect via the API
 if (code) {
-  // Navigate to the API endpoint which will handle the redirect
-  await navigateTo(`/api/${code}`, {
-    external: true,
-    redirectCode: 302
-  });
+	// Navigate to the API endpoint which will handle the redirect
+	await navigateTo(`/api/${code}`, {
+		external: true,
+		redirectCode: 302,
+	});
 }
 </script>
 

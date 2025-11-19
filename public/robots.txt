@@ -1,1 +1,60 @@
+# robots.txt for Links - URL Shortener
+# https://links.mikeodnis.dev
 
+# Allow all bots to access public pages
+User-agent: *
+Allow: /
+Allow: /create
+Allow: /auth
+
+# Disallow crawling of user-specific pages
+Disallow: /dashboard
+Disallow: /keys
+Disallow: /api/
+
+# Disallow offline page (PWA fallback)
+Disallow: /offline
+
+# Disallow PWA service worker files
+Disallow: /sw.js
+Disallow: /workbox-*.js
+Disallow: /manifest.webmanifest
+
+# Allow PWA manifest for app stores
+Allow: /manifest.json
+
+# Allow static assets
+Allow: /assets/
+Allow: /pwa/
+
+# Sitemap location
+Sitemap: https://links.mikeodnis.dev/sitemap.xml
+
+# Crawl delay (be nice to servers)
+Crawl-delay: 1
+
+# Specific bot rules
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 1
+
+# Block bad bots
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
