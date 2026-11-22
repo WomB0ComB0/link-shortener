@@ -15,116 +15,106 @@
 -->
 
 <template>
-  <div class="min-h-screen bg-white flex items-center justify-center px-4">
-    <div class="max-w-md w-full text-center">
-      <!-- Offline Icon -->
-      <div class="mb-8">
-        <div class="w-24 h-24 mx-auto rounded-full bg-gray-100 flex items-center justify-center">
-          <UIcon name="i-heroicons-wifi" class="h-12 w-12 text-gray-400" />
-        </div>
-      </div>
+	<div class="flex flex-1 items-center justify-center px-(--page-gutter) py-12 md:py-20">
+		<section
+			aria-labelledby="offline-title"
+			class="w-full max-w-md rounded-tile border border-hairline bg-surface-1 p-6 text-center shadow-raised sm:p-8"
+		>
+			<div
+				class="mx-auto mb-5 grid size-14 place-items-center rounded-2xl border border-hairline bg-surface-2 text-muted-foreground"
+			>
+				<UIcon name="i-heroicons-wifi" class="size-7" aria-hidden="true" />
+			</div>
 
-      <!-- Heading -->
-      <h1 class="text-3xl font-bold text-gray-900 mb-4">You're Offline</h1>
-      
-      <!-- Description -->
-      <p class="text-gray-600 mb-8">
-        It looks like you've lost your internet connection. Some features may not be available until you're back online.
-      </p>
+			<h1 id="offline-title" class="page-title text-foreground">You're Offline</h1>
 
-      <!-- Actions -->
-      <div class="space-y-3">
-        <UButton
-          @click="reload"
-          block
-          size="lg"
-          icon="i-heroicons-arrow-path"
-          class="rounded-lg"
-          style="background: var(--primary); color: var(--primary-foreground);"
-        >
-          Try Again
-        </UButton>
+			<p class="mt-3 text-body-sm text-muted-foreground">
+				It looks like you've lost your internet connection. Some features may not be available until you're back online.
+			</p>
 
-        <UButton
-          @click="goHome"
-          block
-          size="lg"
-          color="neutral"
-          variant="soft"
-          icon="i-heroicons-home"
-          class="rounded-lg"
-        >
-          Go Home
-        </UButton>
-      </div>
+			<div class="mt-6 flex flex-col gap-2.5">
+				<button
+					type="button"
+					class="console-btn console-btn-primary h-10 w-full"
+					@click="reload"
+				>
+					<UIcon name="i-heroicons-arrow-path" class="size-4 shrink-0" aria-hidden="true" />
+					<span>Try Again</span>
+				</button>
 
-      <!-- Info -->
-      <div class="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-        <div class="flex items-start gap-3">
-          <UIcon name="i-heroicons-information-circle" class="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-          <p class="text-sm text-blue-900 text-left">
-            <strong>Offline Mode:</strong> You can still view previously loaded content while offline. Your internet connection will be restored automatically when available.
-          </p>
-        </div>
-      </div>
+				<button
+					type="button"
+					class="console-btn console-btn-outline h-10 w-full"
+					@click="goHome"
+				>
+					<UIcon name="i-heroicons-home" class="size-4 shrink-0" aria-hidden="true" />
+					<span>Go Home</span>
+				</button>
+			</div>
 
-      <!-- Status -->
-      <div class="mt-6">
-        <div class="flex items-center justify-center gap-2 text-sm text-gray-500">
-          <div
-            class="w-2 h-2 rounded-full"
-            :class="isOnline ? 'bg-green-500' : 'bg-red-500'"
-          />
-          <span>{{ isOnline ? 'Online' : 'Offline' }}</span>
-        </div>
-      </div>
-    </div>
-  </div>
+			<div
+				class="mt-6 flex items-start gap-2.5 rounded-lg border border-info/25 bg-info-tint p-3.5 text-left text-body-sm text-info"
+			>
+				<UIcon
+					name="i-heroicons-information-circle"
+					class="mt-0.5 size-4 shrink-0"
+					aria-hidden="true"
+				/>
+				<p class="m-0 leading-relaxed text-info">
+					<strong>Offline Mode:</strong> Previously loaded content remains available while offline. Connection will restore automatically.
+				</p>
+			</div>
+
+			<div class="mt-6 flex items-center justify-center gap-2 tile-meta text-muted-foreground">
+				<StatusDot :tone="isOnline ? 'live' : 'down'" :pulse="isOnline" />
+				<span>{{ isOnline ? "Online" : "Offline" }}</span>
+			</div>
+		</section>
+	</div>
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 
 const router = useRouter();
 const isOnline = ref(true);
 
 function updateOnlineStatus() {
-  isOnline.value = navigator.onLine;
-  
-  if (isOnline.value) {
-    // Auto-redirect to home when back online
-    setTimeout(() => {
-      router.push("/");
-    }, 1000);
-  }
+	isOnline.value = navigator.onLine;
+
+	if (isOnline.value) {
+		setTimeout(() => {
+			router.push("/");
+		}, 1000);
+	}
 }
 
 function reload() {
-  window.location.reload();
+	window.location.reload();
 }
 
 function goHome() {
-  router.push("/");
+	router.push("/");
 }
 
 onMounted(() => {
-  if (process.client) {
-    isOnline.value = navigator.onLine;
-    window.addEventListener("online", updateOnlineStatus);
-    window.addEventListener("offline", updateOnlineStatus);
-  }
+	if (import.meta.client) {
+		isOnline.value = navigator.onLine;
+		window.addEventListener("online", updateOnlineStatus);
+		window.addEventListener("offline", updateOnlineStatus);
+	}
 });
 
 onUnmounted(() => {
-  if (process.client) {
-    window.removeEventListener("online", updateOnlineStatus);
-    window.removeEventListener("offline", updateOnlineStatus);
-  }
+	if (import.meta.client) {
+		window.removeEventListener("online", updateOnlineStatus);
+		window.removeEventListener("offline", updateOnlineStatus);
+	}
 });
 
 useSeoMeta({
-  title: "Offline - Links",
-  description: "You are currently offline",
-  robots: "noindex,nofollow",
+	title: "Offline - Links",
+	description: "You are currently offline",
+	robots: "noindex,nofollow",
 });
 </script>

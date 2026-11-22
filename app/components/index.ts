@@ -15,9 +15,22 @@
  */
 
 export { default as ApiKeys } from "./ApiKeys.vue";
+export { default as AppFooter } from "./AppFooter.vue";
 export { default as AppHeader } from "./AppHeader.vue";
+export { default as AppRail } from "./AppRail.vue";
+export { default as CommandPalette } from "./CommandPalette.vue";
+export { default as DataErrorCard } from "./DataErrorCard.vue";
+export { default as EdgeHaze } from "./EdgeHaze.vue";
+export { default as LightRays } from "./LightRays.vue";
 export { default as LinkAnalytics } from "./LinkAnalytics.vue";
 export { default as LinkCard } from "./LinkCard.vue";
+export { default as LinkHealthBadge } from "./LinkHealthBadge.vue";
 export { default as LinksGrid } from "./LinksGrid.vue";
+export { default as MobileNavBar } from "./MobileNavBar.vue";
+export { default as PageShell } from "./PageShell.vue";
 export { default as PwaInstallPrompt } from "./PwaInstallPrompt.vue";
 export { default as PwaUpdatePrompt } from "./PwaUpdatePrompt.vue";
+export { default as SkeletonBox } from "./SkeletonBox.vue";
+export { default as SpotlightRoot } from "./SpotlightRoot.vue";
+export { default as StatStrip } from "./StatStrip.vue";
+export { default as StatusDot } from "./StatusDot.vue";

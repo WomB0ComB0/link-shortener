@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+export * from "./use-auth";
+export * from "./use-command-palette";
 export * from "./use-copy-to-clipboard";
 export * from "./use-fetcher";
+export * from "./use-link-health";
 export * from "./use-persisted-id";

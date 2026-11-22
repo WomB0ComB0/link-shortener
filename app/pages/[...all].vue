@@ -17,14 +17,11 @@
 <script setup lang="ts">
 const route = useRoute();
 
-// Extract the code from the route params
 const code = Array.isArray(route.params.all)
 	? route.params.all[0]
 	: route.params.all;
 
-// If we have a code, try to redirect via the API
 if (code) {
-	// Navigate to the API endpoint which will handle the redirect
 	await navigateTo(`/api/${code}`, {
 		external: true,
 		redirectCode: 302,
@@ -33,13 +30,43 @@ if (code) {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center">
-    <div class="text-center">
-      <h1 class="text-6xl font-bold text-primary mb-4">404</h1>
-      <p class="text-xl text-muted-foreground mb-8">Page not found</p>
-      <UButton to="/" color="primary">
-        Go Home
-      </UButton>
-    </div>
-  </div>
+	<section
+		aria-labelledby="not-found-title"
+		class="mx-auto flex w-full max-w-xl flex-col items-center gap-8 px-6 py-20 text-center sm:py-28"
+	>
+		<div class="flex flex-col items-center">
+			<p
+				aria-hidden="true"
+				class="select-none bg-linear-to-b from-primary/70 via-primary/25 to-transparent bg-clip-text text-[clamp(6rem,3rem+14vw,10rem)] leading-none font-black tracking-tighter text-transparent tabular-nums"
+			>
+				404
+			</p>
+			<h1
+				id="not-found-title"
+				class="-mt-4 text-3xl text-foreground sm:-mt-6 sm:text-4xl"
+			>
+				Page not found
+			</h1>
+			<p class="mt-3 text-muted-foreground">
+				This short link doesn't exist, expired, or moved.
+			</p>
+		</div>
+
+		<div class="flex flex-wrap justify-center gap-3">
+			<NuxtLink to="/" class="console-btn console-btn-primary h-10 px-6">
+				<UIcon name="i-heroicons-home" class="size-4 shrink-0" aria-hidden="true" />
+				<span>Home</span>
+			</NuxtLink>
+			<NuxtLink to="/create" class="console-btn console-btn-outline h-10 px-6">
+				<UIcon name="i-heroicons-plus" class="size-4 shrink-0" aria-hidden="true" />
+				<span>Create Link</span>
+			</NuxtLink>
+		</div>
+
+		<p class="text-body-sm text-muted-foreground">
+			Press
+			<kbd class="rounded border border-hairline bg-surface-3 px-1.5 py-0.5 font-mono text-label text-foreground">⌘K</kbd>
+			(<kbd class="rounded border border-hairline bg-surface-3 px-1.5 py-0.5 font-mono text-label text-foreground">Ctrl K</kbd> on Windows and Linux) to search
+		</p>
+	</section>
 </template>

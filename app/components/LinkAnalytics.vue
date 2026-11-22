@@ -15,117 +15,191 @@
 -->
 
 <template>
-  <UModal v-model="isOpen">
-    <UCard>
-      <template #header>
-        <div class="flex items-center justify-between">
-          <div>
-            <h3 class="text-lg font-bold text-gray-900">Link Analytics</h3>
-            <p class="text-sm text-gray-600 mt-1">{{ link.shortUrl }}</p>
-          </div>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            icon="i-heroicons-x-mark"
-            @click="closeModal"
-          />
-        </div>
-      </template>
+	<UModal
+		v-model:open="isOpen"
+		title="Link Analytics"
+		:description="`/${link.shortUrl}`"
+		:ui="{
+			overlay: 'bg-canvas/75 backdrop-blur-sm',
+			content:
+				'rounded-tile border border-hairline bg-surface-2 text-foreground shadow-raised divide-y divide-hairline',
+			header: 'px-5 py-4',
+			body: 'px-5 py-5',
+			title: 'tile-title-lg text-foreground',
+			description: 'mono-token text-brand-ink mt-1',
+		}"
+	>
+		<template #body>
+			<div v-if="loading" aria-busy="true" class="space-y-5">
+				<span class="sr-only" role="status">Loading link analytics…</span>
+				<!-- Overview Stats Skeleton -->
+				<div class="grid grid-cols-2 gap-3" aria-hidden="true">
+					<div class="rounded-tile border border-hairline bg-surface-1 p-4">
+						<SkeletonBox class="h-3.5 w-20 rounded-sm" />
+						<SkeletonBox class="mt-3 h-7 w-14 rounded-sm" />
+					</div>
+					<div class="rounded-tile border border-hairline bg-surface-1 p-4">
+						<SkeletonBox class="h-3.5 w-14 rounded-sm" />
+						<SkeletonBox class="mt-3.5 h-6 w-20 rounded-md" />
+					</div>
+				</div>
 
-      <div v-if="loading" class="flex items-center justify-center py-12">
-        <UIcon name="i-heroicons-arrow-path" class="h-8 w-8 animate-spin text-primary" />
-      </div>
+				<!-- Link Details Skeleton -->
+				<div class="space-y-3 rounded-tile border border-hairline bg-surface-1 p-4" aria-hidden="true">
+					<div class="space-y-2">
+						<SkeletonBox class="h-3 w-20 rounded-sm" />
+						<SkeletonBox class="h-4 w-5/6 rounded-sm" />
+					</div>
+					<div class="grid grid-cols-2 gap-4 border-t border-hairline pt-3">
+						<div class="space-y-1.5">
+							<SkeletonBox class="h-3 w-14 rounded-sm" />
+							<SkeletonBox class="h-4 w-24 rounded-sm" />
+						</div>
+						<div class="space-y-1.5">
+							<SkeletonBox class="h-3 w-20 rounded-sm" />
+							<SkeletonBox class="h-4 w-20 rounded-sm" />
+						</div>
+					</div>
+				</div>
 
-      <div v-else-if="analytics" class="space-y-6">
-        <!-- Overview Stats -->
-        <div class="grid grid-cols-2 gap-4">
-          <div class="rounded-lg border border-border/50 bg-gray-50 p-4">
-            <div class="text-xs text-muted-foreground mb-1">Total Clicks</div>
-            <div class="text-2xl font-bold text-gray-900">{{ analytics.totalClicks }}</div>
-          </div>
-          <div class="rounded-lg border border-border/50 bg-gray-50 p-4">
-            <div class="text-xs text-muted-foreground mb-1">Status</div>
-            <div class="flex items-center gap-2">
-              <UBadge :color="analytics.isActive ? 'success' : 'error'" variant="soft">
-                {{ analytics.isActive ? 'Active' : 'Inactive' }}
-              </UBadge>
-            </div>
-          </div>
-        </div>
+				<!-- Recent Clicks Skeleton -->
+				<div class="space-y-2.5" aria-hidden="true">
+					<SkeletonBox class="h-3.5 w-24 rounded-sm" />
+					<div
+						v-for="n in 3"
+						:key="`click-sk-${n}`"
+						class="space-y-2 rounded-lg border border-hairline bg-surface-1 p-3"
+					>
+						<div class="flex items-center justify-between gap-2">
+							<SkeletonBox class="h-3.5 w-20 rounded-sm" />
+							<SkeletonBox class="h-3.5 w-24 rounded-sm" />
+						</div>
+						<SkeletonBox class="h-3 w-3/4 rounded-sm" />
+					</div>
+				</div>
+			</div>
 
-        <!-- Link Details -->
-        <div class="space-y-3">
-          <div>
-            <div class="text-xs text-muted-foreground mb-1">Original URL</div>
-            <a
-              :href="analytics.originalUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-sm text-primary hover:underline truncate block"
-            >
-              {{ analytics.originalUrl }}
-            </a>
-          </div>
+			<div v-else-if="analytics" class="space-y-5">
+				<!-- Overview Stats -->
+				<div class="grid grid-cols-2 gap-3">
+					<div class="rounded-tile border border-hairline bg-surface-1 p-4">
+						<p class="tile-label text-muted-foreground">Total clicks</p>
+						<p class="mt-2 figure-md text-foreground">
+							{{ formatNumber(analytics.totalClicks ?? 0) }}
+						</p>
+					</div>
+					<div class="rounded-tile border border-hairline bg-surface-1 p-4">
+						<p class="tile-label text-muted-foreground">Status</p>
+						<div class="mt-3">
+							<span
+								class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 tile-label"
+								:class="
+									analytics.isActive
+										? 'bg-live-tint text-live'
+										: 'bg-down-tint text-down'
+								"
+							>
+								<StatusDot
+									:tone="analytics.isActive ? 'live' : 'down'"
+									:pulse="analytics.isActive"
+								/>
+								<span>{{ analytics.isActive ? "Active" : "Inactive" }}</span>
+							</span>
+						</div>
+					</div>
+				</div>
 
-          <div v-if="analytics.customAlias" class="grid grid-cols-2 gap-4">
-            <div>
-              <div class="text-xs text-muted-foreground mb-1">Custom Alias</div>
-              <div class="text-sm font-mono">{{ analytics.customAlias }}</div>
-            </div>
-          </div>
+				<!-- Link Details -->
+				<div class="space-y-3 rounded-tile border border-hairline bg-surface-1 p-4">
+					<div>
+						<div class="tile-label text-faint">Original URL</div>
+						<a
+							:href="analytics.originalUrl"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="mt-1 block truncate tile-sub text-brand-ink hover:underline"
+						>
+							{{ analytics.originalUrl }}
+						</a>
+					</div>
 
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <div class="text-xs text-muted-foreground mb-1">Created</div>
-              <div class="text-sm">{{ formatDate(analytics.createdAt) }}</div>
-            </div>
-            <div v-if="analytics.expiresAt">
-              <div class="text-xs text-muted-foreground mb-1">Expires</div>
-              <div class="text-sm">{{ formatDate(analytics.expiresAt) }}</div>
-            </div>
-          </div>
-        </div>
+					<div class="grid grid-cols-2 gap-4 border-t border-hairline pt-3">
+						<div>
+							<div class="tile-label text-faint">Created</div>
+							<div class="mt-1 tile-meta text-foreground">
+								{{ formatDate(analytics.createdAt) }}
+							</div>
+						</div>
+						<div v-if="analytics.expiresAt">
+							<div class="tile-label text-faint">Expires</div>
+							<div class="mt-1 tile-meta text-foreground">
+								{{ formatDate(analytics.expiresAt) }}
+							</div>
+						</div>
+						<div v-if="analytics.customAlias">
+							<div class="tile-label text-faint">Custom alias</div>
+							<div class="mt-1 mono-token text-brand-ink">
+								{{ analytics.customAlias }}
+							</div>
+						</div>
+					</div>
+				</div>
 
-        <!-- Recent Clicks -->
-        <div v-if="analytics.clicks && analytics.clicks.length > 0">
-          <h4 class="text-sm font-semibold text-gray-900 mb-3">Recent Clicks</h4>
-          <div class="space-y-2 max-h-64 overflow-y-auto">
-            <div
-              v-for="click in analytics.clicks"
-              :key="click.id"
-              class="rounded-lg border border-border/50 bg-gray-50 p-3 text-xs"
-            >
-              <div class="flex items-center justify-between mb-2">
-                <div class="font-medium text-gray-900">
-                  {{ formatClickDate(click.timestamp) }}
-                </div>
-                <div v-if="click.country" class="flex items-center gap-1 text-muted-foreground">
-                  <UIcon name="i-heroicons-map-pin" class="h-3 w-3" />
-                  <span>{{ click.country }}{{ click.city ? `, ${click.city}` : '' }}</span>
-                </div>
-              </div>
+				<!-- Recent Clicks -->
+				<div v-if="analytics.clicks && analytics.clicks.length > 0">
+					<h4 class="tile-label mb-2.5 text-muted-foreground">Recent clicks</h4>
+					<div class="max-h-64 space-y-2 overflow-y-auto pr-1">
+						<div
+							v-for="click in analytics.clicks"
+							:key="click.id"
+							class="rounded-lg border border-hairline bg-surface-1 p-3 tile-meta"
+						>
+							<div class="mb-1.5 flex items-center justify-between gap-2">
+								<span class="font-medium text-foreground">
+									{{ formatClickDate(click.timestamp) }}
+								</span>
+								<span
+									v-if="click.country"
+									class="inline-flex items-center gap-1 text-muted-foreground"
+								>
+									<UIcon name="i-heroicons-map-pin" class="size-3.5" aria-hidden="true" />
+									<span>{{ click.country }}{{ click.city ? `, ${click.city}` : "" }}</span>
+								</span>
+							</div>
 
-              <div v-if="click.referrer" class="text-muted-foreground truncate mb-1">
-                <span class="font-medium">Referrer:</span> {{ click.referrer }}
-              </div>
+							<div v-if="click.referrer" class="truncate text-muted-foreground">
+								<span class="text-faint">Referrer:</span> {{ click.referrer }}
+							</div>
 
-              <div v-if="click.userAgent" class="text-muted-foreground truncate">
-                <span class="font-medium">User Agent:</span> {{ click.userAgent }}
-              </div>
-            </div>
-          </div>
-        </div>
+							<div v-if="click.userAgent" class="truncate text-muted-foreground">
+								<span class="text-faint">Agent:</span> {{ click.userAgent }}
+							</div>
+						</div>
+					</div>
+				</div>
 
-        <!-- No clicks message -->
-        <div v-else class="text-center py-8 text-muted-foreground">
-          <UIcon name="i-heroicons-cursor-arrow-rays-slash" class="h-12 w-12 mx-auto mb-2 opacity-30" />
-          <p class="text-sm">No clicks recorded yet</p>
-        </div>
-      </div>
+				<div
+					v-else
+					class="rounded-tile border border-hairline bg-surface-1 py-8 text-center"
+				>
+					<UIcon
+						name="i-heroicons-cursor-arrow-rays-slash"
+						class="mx-auto mb-2 size-8 text-faint"
+						aria-hidden="true"
+					/>
+					<p class="tile-sub text-muted-foreground">No clicks recorded yet</p>
+				</div>
+			</div>
 
-      <UAlert v-else-if="error" color="error" :title="error" />
-    </UCard>
-  </UModal>
+			<DataErrorCard
+				v-else-if="error"
+				title="Failed to load analytics"
+				:message="error"
+				:retrying="loading"
+				@retry="fetchAnalytics"
+			/>
+		</template>
+	</UModal>
 </template>
 
 <script lang="ts" setup>
@@ -147,6 +221,7 @@ const isOpen = ref(props.modelValue);
 const loading = ref(false);
 const error = ref("");
 const analytics = ref<any>(null);
+const numberFormatter = new Intl.NumberFormat("en-US");
 
 watch(
 	() => props.modelValue,
@@ -156,6 +231,7 @@ watch(
 			fetchAnalytics();
 		}
 	},
+	{ immediate: true },
 );
 
 watch(isOpen, (newValue) => {
@@ -168,19 +244,9 @@ async function fetchAnalytics() {
 	analytics.value = null;
 
 	try {
-		const authToken = process.client
-			? localStorage.getItem("auth_token")
-			: null;
-		const headers: Record<string, string> = {};
-
-		if (authToken) {
-			headers.Authorization = `Bearer ${authToken}`;
-		}
-
 		const data = await fetchGet(
 			"/api/links/analytics",
 			{
-				headers,
 				retries: 2,
 				timeout: 10000,
 			},
@@ -197,8 +263,8 @@ async function fetchAnalytics() {
 	}
 }
 
-function closeModal() {
-	isOpen.value = false;
+function formatNumber(value: number): string {
+	return numberFormatter.format(value);
 }
 
 function formatDate(date: string | Date): string {

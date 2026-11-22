@@ -25,15 +25,26 @@ export default defineNuxtConfig({
 	modules: [
 		"@nuxt/fonts",
 		"@nuxt/icon",
-		"@nuxt/image",
 		"@nuxt/ui",
-		"@nuxt/test-utils",
-		"@nuxt/scripts",
-		"@vueuse/nuxt",
 		"@vite-pwa/nuxt",
 	] as const as string[],
 
-	css: ["./app/assets/css/main.css"],
+	css: ["~/assets/css/main.css"],
+
+	fonts: {
+		families: [
+			{
+				name: "Geist",
+				provider: "google",
+				weights: [400, 500, 600, 700],
+			},
+			{
+				name: "Geist Mono",
+				provider: "google",
+				weights: [400, 500, 600],
+			},
+		],
+	},
 
 	runtimeConfig: {
 		MASTER_PASSWORD_HASH: process.env.MASTER_PASSWORD_HASH,
@@ -53,15 +64,18 @@ export default defineNuxtConfig({
 
 	app: {
 		head: {
-			viewport: "width=device-width,initial-scale=1",
+			htmlAttrs: {
+				lang: "en",
+				class: "dark",
+			},
+			viewport: "width=device-width,initial-scale=1,viewport-fit=cover",
 			link: [
 				{ rel: "icon", href: "/favicon.ico", sizes: "any" },
 				{ rel: "icon", type: "image/svg+xml", href: "/assets/svgs/logo.svg" },
 				{ rel: "apple-touch-icon", href: "/pwa/ios/180.png" },
-				{ rel: "mask-icon", href: "/assets/svgs/logo.svg", color: "oklch(52% 0.12 285deg)" },
+				{ rel: "mask-icon", href: "/assets/svgs/logo.svg", color: "#0c0c14" },
 			],
 			script: [
-				{ src: "https://cdn.tailwindcss.com", defer: true },
 				{
 					src: "https://cloud.umami.is/script.js",
 					defer: true,
@@ -69,8 +83,12 @@ export default defineNuxtConfig({
 				},
 			],
 			meta: [
-				{ name: "viewport", content: "width=device-width, initial-scale=1" },
 				{ name: "description", content: app.description },
+				{ name: "color-scheme", content: "dark" },
+				{ property: "og:site_name", content: app.name },
+				{ property: "og:type", content: "website" },
+				{ property: "og:url", content: app.url },
+				{ name: "twitter:creator", content: "@mike_odnis" },
 				{
 					name: "apple-mobile-web-app-status-bar-style",
 					content: "black-translucent",
@@ -89,17 +107,11 @@ export default defineNuxtConfig({
 				},
 				{
 					name: "theme-color",
-					media: "(prefers-color-scheme: light)",
-					content: "#ffffff",
-				},
-				{
-					name: "theme-color",
-					media: "(prefers-color-scheme: dark)",
-					content: "#1a1a1a",
+					content: "#0c0c14",
 				},
 				{
 					name: "msapplication-TileColor",
-					content: "oklch(52% 0.12 285deg)",
+					content: "#0c0c14",
 				},
 				{
 					name: "msapplication-config",
@@ -110,6 +122,8 @@ export default defineNuxtConfig({
 	},
 
 	colorMode: {
+		preference: "dark",
+		fallback: "dark",
 		classSuffix: "",
 	},
 
@@ -131,8 +145,8 @@ export default defineNuxtConfig({
 		},
 		prerender: {
 			crawlLinks: false,
-			routes: ["/"],
-			ignore: ["/hi"], // TODO: 🚩
+			routes: [],
+			ignore: ["/hi"],
 		},
 	},
 

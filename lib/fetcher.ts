@@ -566,16 +566,35 @@ export function fetcher<T = unknown>(
 
 			// Check for HTTP errors (non-2xx status codes)
 			if (response.status < 200 || response.status >= 300) {
-				const errorData = yield* pipe(
-					response.json,
-					Effect.catchAll(() => Effect.succeed(undefined)),
+				const errorText = yield* pipe(
+					response.text,
+					Effect.catchAll(() => Effect.succeed("")),
 				);
+
+				let errorData: unknown;
+				if (errorText) {
+					try {
+						errorData = JSON.parse(errorText);
+					} catch {
+						errorData = undefined;
+					}
+				}
+
+				const extractedMessage =
+					errorData && typeof errorData === "object"
+						? typeof (errorData as Record<string, unknown>).message === "string"
+							? String((errorData as Record<string, unknown>).message)
+							: typeof (errorData as Record<string, unknown>).statusMessage ===
+									"string"
+								? String((errorData as Record<string, unknown>).statusMessage)
+								: undefined
+						: undefined;
 
 				// Enhanced error handling for 429 Rate Limit responses
 				const errorMessage =
 					response.status === 429
 						? `Rate limit exceeded (429). Please slow down requests to ${url}`
-						: `HTTP ${response.status}: ${response.text || "Request failed"}`;
+						: `HTTP ${response.status}: ${extractedMessage || errorText || "Request failed"}`;
 
 				const error = new FetcherError(
 					errorMessage,

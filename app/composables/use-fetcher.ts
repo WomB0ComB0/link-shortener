@@ -15,7 +15,7 @@
  */
 
 import { FetchHttpClient, type HttpClient } from "@effect/platform";
-import { Effect, Layer } from "effect";
+import { Cause, Effect, Exit } from "effect";
 import type { FetcherOptions } from "../../lib/fetcher";
 import {
 	del,
@@ -49,7 +49,13 @@ export function useFetcher() {
 			HttpClient.HttpClient
 		>,
 	): Promise<T> {
-		return Effect.runPromise(Effect.provide(effect, getHttpClientLayer()));
+		const exit = await Effect.runPromiseExit(
+			Effect.provide(effect, getHttpClientLayer()),
+		);
+		if (Exit.isFailure(exit)) {
+			throw Cause.squash(exit.cause);
+		}
+		return exit.value;
 	}
 
 	/**

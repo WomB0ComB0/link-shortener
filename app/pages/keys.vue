@@ -15,76 +15,56 @@
 -->
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- Header -->
-    <AppHeader>
-      <template #nav>
-        <NuxtLink to="/">
-          <UButton
-            icon="i-heroicons-home"
-            color="neutral"
-            variant="soft"
-            class="rounded-lg"
-          >
-            Home
-          </UButton>
-        </NuxtLink>
-        <NuxtLink to="/dashboard" class="mx-2">
-          <UButton
-            icon="i-heroicons-link"
-            color="neutral"
-            variant="soft"
-            class="rounded-lg"
-          >
-            My Links
-          </UButton>
-        </NuxtLink>
-        <NuxtLink to="/create" class="mx-2">
-          <UButton
-            icon="i-heroicons-plus"
-            color="primary"
-            variant="soft"
-            class="rounded-lg"
-          >
-            Create Link
-          </UButton>
-        </NuxtLink>
-        <UButton
-          @click="handleLogout"
-          variant="ghost"
-          color="neutral"
-          class="rounded-lg"
-          icon="i-heroicons-arrow-left-on-rectangle"
-        >
-          Logout
-        </UButton>
-      </template>
-    </AppHeader>
+	<PageShell
+		eyebrow="Developer"
+		title="API Keys"
+		description="Manage scoped API keys for programmatic link shortening and analytics access."
+	>
+		<template #actions>
+			<NuxtLink to="/dashboard" class="console-btn console-btn-outline">
+				<UIcon name="i-heroicons-link" class="size-4 shrink-0" aria-hidden="true" />
+				<span>My Links</span>
+			</NuxtLink>
+			<NuxtLink to="/create" class="console-btn console-btn-outline">
+				<UIcon name="i-heroicons-plus" class="size-4 shrink-0" aria-hidden="true" />
+				<span>Create Link</span>
+			</NuxtLink>
+			<button
+				type="button"
+				class="console-btn console-btn-ghost"
+				@click="handleLogout"
+			>
+				<UIcon
+					name="i-heroicons-arrow-left-on-rectangle"
+					class="size-4 shrink-0"
+					aria-hidden="true"
+				/>
+				<span>Logout</span>
+			</button>
+		</template>
 
-    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-      <ApiKeys />
-    </main>
-  </div>
+		<ApiKeys />
+	</PageShell>
 </template>
 
 <script lang="ts" setup>
 import { onMounted } from "vue";
+import { useAuth } from "../composables";
 
 const router = useRouter();
+const { isAuthenticated, logout, syncFromStorage } = useAuth();
 
-onMounted(() => {
-	if (process.client) {
-		const token = localStorage.getItem("auth_token");
-		if (!token) {
+onMounted(async () => {
+	if (import.meta.client) {
+		await syncFromStorage();
+		if (!isAuthenticated.value) {
 			router.push("/auth");
 		}
 	}
 });
 
-function handleLogout() {
-	if (process.client) {
-		localStorage.removeItem("auth_token");
-	}
+async function handleLogout() {
+	await logout();
 	router.push("/");
 }
 

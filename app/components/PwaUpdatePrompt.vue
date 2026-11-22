@@ -15,98 +15,93 @@
 -->
 
 <template>
-  <div
-    v-if="showUpdatePrompt"
-    class="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-50 animate-in slide-in-from-top-5 duration-300"
-  >
-    <div class="bg-white border border-blue-200 rounded-xl shadow-lg p-4">
-      <div class="flex items-start gap-3">
-        <div class="shrink-0">
-          <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <UIcon name="i-heroicons-arrow-path" class="h-5 w-5 text-blue-600" />
-          </div>
-        </div>
-        
-        <div class="flex-1 min-w-0">
-          <h3 class="font-semibold text-gray-900 mb-1">Update Available</h3>
-          <p class="text-sm text-gray-600 mb-3">
-            A new version of Links is available. Refresh to get the latest updates.
-          </p>
-          
-          <div class="flex gap-2">
-            <UButton
-              @click="update"
-              size="sm"
-              color="primary"
-              class="rounded-lg"
-            >
-              Update Now
-            </UButton>
-            <UButton
-              @click="dismiss"
-              size="sm"
-              color="neutral"
-              variant="ghost"
-              class="rounded-lg"
-            >
-              Later
-            </UButton>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+	<div
+		v-if="showUpdatePrompt"
+		class="fixed top-4 right-4 left-4 z-50 sm:left-auto sm:max-w-md"
+	>
+		<div class="rounded-tile border border-hairline bg-surface-2 p-4 shadow-raised">
+			<div class="flex items-start gap-3">
+				<div
+					class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-hairline bg-info-tint text-info"
+				>
+					<UIcon name="i-heroicons-arrow-path" class="size-5" aria-hidden="true" />
+				</div>
+
+				<div class="min-w-0 flex-1">
+					<h3 class="tile-title text-foreground">Update available</h3>
+					<p class="mt-1 tile-sub text-muted-foreground">
+						A new version of Links is ready. Refresh to load the latest build.
+					</p>
+
+					<div class="mt-3 flex gap-2">
+						<button
+							type="button"
+							class="console-btn console-btn-primary h-8 px-3 text-xs"
+							@click="update"
+						>
+							Update Now
+						</button>
+						<button
+							type="button"
+							class="console-btn console-btn-ghost h-8 px-3 text-xs"
+							@click="dismiss"
+						>
+							Later
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted } from "vue";
+import { onMounted, ref } from "vue";
 
 const showUpdatePrompt = ref(false);
 let registration: ServiceWorkerRegistration | null = null;
 
 onMounted(() => {
-  if (process.client && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.ready.then((reg) => {
-      registration = reg;
-      
-      // Check for updates periodically
-      setInterval(() => {
-        reg.update();
-      }, 60000); // Check every minute
-      
-      // Listen for waiting service worker
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        
-        newWorker?.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdatePrompt.value = true;
-          }
-        });
-      });
-    });
+	if (import.meta.client && "serviceWorker" in navigator) {
+		navigator.serviceWorker.ready.then((reg) => {
+			registration = reg;
 
-    // Also check on page load
-    navigator.serviceWorker.getRegistration().then((reg) => {
-      if (reg?.waiting) {
-        showUpdatePrompt.value = true;
-      }
-    });
-  }
+			setInterval(() => {
+				reg.update();
+			}, 60000);
+
+			reg.addEventListener("updatefound", () => {
+				const newWorker = reg.installing;
+
+				newWorker?.addEventListener("statechange", () => {
+					if (
+						newWorker.state === "installed" &&
+						navigator.serviceWorker.controller
+					) {
+						showUpdatePrompt.value = true;
+					}
+				});
+			});
+		});
+
+		navigator.serviceWorker.getRegistration().then((reg) => {
+			if (reg?.waiting) {
+				showUpdatePrompt.value = true;
+			}
+		});
+	}
 });
 
 function update() {
-  if (registration?.waiting) {
-    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-    
-    // Reload after a short delay
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
-  }
+	if (registration?.waiting) {
+		registration.waiting.postMessage({ type: "SKIP_WAITING" });
+		setTimeout(() => {
+			window.location.reload();
+		}, 500);
+	}
 }
 
 function dismiss() {
-  showUpdatePrompt.value = false;
+	showUpdatePrompt.value = false;
 }
 </script>

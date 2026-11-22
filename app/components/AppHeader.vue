@@ -15,19 +15,23 @@
 -->
 
 <template>
-  <header class="border-b border-gray-200 bg-white/95 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="flex h-16 items-center justify-between gap-4">
-        <NuxtLink to="/" class="flex items-center gap-2 shrink-0">
-          <div class="h-8 w-8 rounded-md flex justify-center items-center" style="background: var(--primary)">
-            <img src="/assets/images/logo.png" alt="Link Shortener" class="h-6 w-auto" />
-          </div>
-          <h1 class="text-lg font-bold text-gray-900 hidden sm:block">Links</h1>
-        </NuxtLink>
-        <nav class="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
-          <slot name="nav" />
-        </nav>
-      </div>
-    </div>
-  </header>
+	<header
+		class="sticky top-0 z-10 border-b border-hairline bg-canvas/85 backdrop-blur-md"
+	>
+		<div class="mx-auto max-w-shell px-(--page-gutter)">
+			<div class="flex h-16 items-center justify-between gap-4">
+				<NuxtLink to="/" class="flex shrink-0 items-center gap-2.5 text-foreground">
+					<div
+						class="flex size-8 items-center justify-center rounded-md border border-hairline bg-surface-2"
+					>
+						<img src="/assets/images/logo.png" alt="Links" class="h-5 w-auto" />
+					</div>
+					<span class="tile-title hidden text-foreground sm:block">Links</span>
+				</NuxtLink>
+				<nav class="flex flex-wrap items-center justify-end gap-2">
+					<slot name="nav" />
+				</nav>
+			</div>
+		</div>
+	</header>
 </template>

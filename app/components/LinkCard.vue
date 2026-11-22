@@ -15,76 +15,109 @@
 -->
 
 <template>
-  <div
-    class="group relative overflow-hidden rounded-xl border border-gray-200 bg-white hover:border-purple-200 transition-all hover:shadow-lg p-4"
-  >
-    <div class="flex flex-col gap-3">
-      <!-- Short URL -->
-      <div class="flex items-start justify-between gap-2">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2">
-            <UIcon name="i-heroicons-link" class="h-5 w-5 text-primary shrink-0" />
-            <code class="text-sm font-mono font-semibold text-primary truncate">
-              {{ link.shortUrl }}
-            </code>
-          </div>
-        </div>
-        
-        <div class="flex items-center gap-1">
-          <UButton
-            v-if="showAnalytics"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            icon="i-heroicons-chart-bar"
-            @click="openAnalytics"
-          />
-          <UButton
-            color="primary"
-            variant="ghost"
-            size="xs"
-            icon="i-heroicons-clipboard-document"
-            @click="copyLink(link.shortUrl)"
-          >
-            {{ copied ? 'Copied!' : 'Copy' }}
-          </UButton>
-        </div>
-      </div>
+	<article
+		data-spotlight=""
+		class="group/tile spotlight console-tile-lift flex min-w-0 flex-col rounded-tile border border-hairline bg-surface-1 p-4 text-foreground @container md:p-5"
+	>
+		<div class="flex flex-1 flex-col gap-3">
+			<!-- Short URL & actions -->
+			<div class="flex items-start justify-between gap-2">
+				<div class="flex min-w-0 flex-1 items-center gap-2">
+					<span
+						class="flex size-7 shrink-0 items-center justify-center rounded-md border border-hairline bg-surface-2 text-brand-ink"
+					>
+						<UIcon name="i-heroicons-link" class="size-4" aria-hidden="true" />
+					</span>
+					<code
+						class="mono-token truncate rounded-md bg-brand-subtle px-2 py-1 text-brand-ink"
+					>
+						/{{ link.shortUrl }}
+					</code>
+				</div>
 
-      <!-- Original URL -->
-      <div class="flex items-start gap-2">
-        <UIcon name="i-heroicons-arrow-top-right-on-square" class="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-        <a
-          :href="link.originalUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-xs text-muted-foreground hover:text-primary transition-colors truncate flex-1 min-w-0"
-        >
-          {{ link.originalUrl }}
-        </a>
-      </div>
+				<div class="flex shrink-0 items-center gap-1">
+					<button
+						v-if="showAnalytics"
+						type="button"
+						class="inline-flex h-7 cursor-pointer items-center justify-center rounded-md px-2 tile-meta text-muted-foreground transition-colors duration-(--motion-fast) ease-standard hover:bg-surface-2 hover:text-foreground"
+						aria-label="View link analytics"
+						title="View analytics"
+						@click="openAnalytics"
+					>
+						<UIcon name="i-heroicons-chart-bar" class="size-4" aria-hidden="true" />
+					</button>
+					<button
+						type="button"
+						class="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 tile-meta transition-colors duration-(--motion-fast) ease-standard hover:bg-surface-2"
+						:class="copied ? 'text-live' : 'text-muted-foreground hover:text-foreground'"
+						@click="copyLink(link.shortUrl)"
+					>
+						<UIcon
+							:name="copied ? 'i-heroicons-check' : 'i-heroicons-clipboard-document'"
+							class="size-3.5 shrink-0"
+							aria-hidden="true"
+						/>
+						<span>{{ copied ? "Copied" : "Copy" }}</span>
+					</button>
+				</div>
+			</div>
 
-      <!-- Metadata -->
-      <div class="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-gray-100">
-        <div class="flex items-center gap-1">
-          <UIcon name="i-heroicons-clock" class="h-3 w-3" />
-          <span>{{ formatDate(link.createdAt) }}</span>
-        </div>
-        
-        <div class="flex items-center gap-3">
-          <div v-if="link.totalClicks !== undefined" class="flex items-center gap-1">
-            <UIcon name="i-heroicons-cursor-arrow-rays" class="h-3 w-3" />
-            <span>{{ link.totalClicks }} {{ link.totalClicks === 1 ? 'click' : 'clicks' }}</span>
-          </div>
-          
-          <div v-if="link.customAlias" class="flex items-center gap-1">
-            <UIcon name="i-heroicons-tag" class="h-3 w-3" />
-            <span>Custom</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+			<!-- Original URL -->
+			<div class="space-y-1.5">
+				<div class="flex min-w-0 items-start gap-2">
+					<UIcon
+						name="i-heroicons-arrow-top-right-on-square"
+						class="mt-0.5 size-3.5 shrink-0 text-faint"
+						aria-hidden="true"
+					/>
+					<a
+						:href="link.originalUrl"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="tile-sub min-w-0 flex-1 truncate text-muted-foreground transition-colors duration-(--motion-fast) ease-standard hover:text-brand-ink"
+					>
+						{{ link.originalUrl }}
+					</a>
+				</div>
+				<LinkHealthBadge :href="link.originalUrl" />
+			</div>
+
+			<!-- Metadata -->
+			<div
+				class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3 tile-meta text-faint"
+			>
+				<div class="flex items-center gap-1.5">
+					<UIcon name="i-heroicons-clock" class="size-3.5 shrink-0" aria-hidden="true" />
+					<span>{{ formatDate(link.createdAt) }}</span>
+				</div>
+
+				<div class="flex items-center gap-2.5">
+					<div
+						v-if="link.totalClicks !== undefined"
+						class="flex items-center gap-1 text-muted-foreground"
+					>
+						<UIcon
+							name="i-heroicons-cursor-arrow-rays"
+							class="size-3.5 shrink-0"
+							aria-hidden="true"
+						/>
+						<span>
+							{{ formatClicks(link.totalClicks) }}
+							{{ link.totalClicks === 1 ? "click" : "clicks" }}
+						</span>
+					</div>
+
+					<span
+						v-if="link.customAlias"
+						class="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-1.5 py-0.5 mono-token text-muted-foreground"
+					>
+						<UIcon name="i-heroicons-tag" class="size-3 shrink-0" aria-hidden="true" />
+						<span>Custom</span>
+					</span>
+				</div>
+			</div>
+		</div>
+	</article>
 </template>
 
 <script lang="ts" setup>
@@ -110,6 +143,7 @@ const emit =
 
 const copied = ref(false);
 const { copyToClipboard } = useCopyToClipboard();
+const numberFormatter = new Intl.NumberFormat("en-US");
 
 function copyLink(shortUrl: string) {
 	const baseUrl = window?.location?.origin || "http://localhost:3000";
@@ -129,6 +163,10 @@ function openAnalytics() {
 	});
 }
 
+function formatClicks(count: number): string {
+	return numberFormatter.format(count);
+}
+
 function formatDate(date: string | Date): string {
 	const d = new Date(date);
 	const now = new Date();
@@ -142,6 +180,10 @@ function formatDate(date: string | Date): string {
 	if (diffHours < 24) return `${diffHours}h ago`;
 	if (diffDays < 7) return `${diffDays}d ago`;
 
-	return d.toLocaleDateString();
+	return d.toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+	});
 }
 </script>

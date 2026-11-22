@@ -1,0 +1,402 @@
+/**
+ * Copyright 2026 Mike Odnis
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Scroll edge haze: a straight band of progressive blur at the top and bottom
+ * of the page column, tinted with the canvas and eased to nothing.
+ * Strength 6px, top and bottom 11svh, tint 59%, 8 layers (7 up to 5px on coarse pointers).
+ */
+
+:root {
+	--edge-haze-top: clamp(min(77px, 14svh), 11svh, 132px);
+	--edge-haze-bottom: clamp(min(77px, 14svh), 11svh, 132px);
+}
+
+.edge-haze {
+	--edge-haze-ramp:
+		oklch(from var(--canvas) l c h / 59%) 0%,
+		oklch(from var(--canvas) l c h / 47%) 18%,
+		oklch(from var(--canvas) l c h / 34%) 37%,
+		oklch(from var(--canvas) l c h / 21%) 57%,
+		oklch(from var(--canvas) l c h / 9%) 78%,
+		transparent 100%;
+
+	position: fixed;
+	inset: 0 0 var(--mobile-bar-total);
+	z-index: 20;
+	pointer-events: none;
+}
+
+@media (width >= 64rem) {
+	.edge-haze {
+		inset: 0 0 0 4rem;
+	}
+}
+
+.edge-haze > div {
+	position: absolute;
+	inset-inline: 0;
+	max-width: var(--container-shell);
+	margin-inline: auto;
+}
+
+.edge-haze > .t {
+	--edge-haze-fade: linear-gradient(
+		to top,
+		transparent 0%,
+		#000 33.33%,
+		#000 66.67%,
+		transparent 100%
+	);
+	--edge-haze-fade-end: linear-gradient(
+		to top,
+		transparent 0%,
+		#000 50%,
+		#000 100%,
+		#000 100%
+	);
+
+	top: env(safe-area-inset-top, 0);
+	height: var(--edge-haze-top);
+}
+
+.edge-haze > .b {
+	--edge-haze-fade: linear-gradient(
+		to bottom,
+		transparent 0%,
+		#000 33.33%,
+		#000 66.67%,
+		transparent 100%
+	);
+	--edge-haze-fade-end: linear-gradient(
+		to bottom,
+		transparent 0%,
+		#000 50%,
+		#000 100%,
+		#000 100%
+	);
+
+	bottom: 0;
+	height: var(--edge-haze-bottom);
+}
+
+.edge-haze > div > i {
+	position: absolute;
+	display: block;
+	opacity: 0;
+}
+
+.edge-haze > div > .l {
+	left: 0;
+	width: 100%;
+	height: var(--edge-haze-span);
+	-webkit-backdrop-filter: blur(var(--edge-haze-blur));
+	backdrop-filter: blur(var(--edge-haze-blur));
+	-webkit-mask-image: var(--edge-haze-fade);
+	mask-image: var(--edge-haze-fade);
+}
+
+.edge-haze > .t > .l {
+	top: var(--edge-haze-at);
+}
+
+.edge-haze > .b > .l {
+	bottom: var(--edge-haze-at);
+}
+
+.edge-haze .l:nth-child(1) {
+	--edge-haze-at: 66.67%;
+	--edge-haze-span: 33.33%;
+	--edge-haze-blur: 1px;
+}
+
+.edge-haze .l:nth-child(2) {
+	--edge-haze-at: 55.56%;
+	--edge-haze-span: 33.33%;
+	--edge-haze-blur: 1.29px;
+}
+
+.edge-haze .l:nth-child(3) {
+	--edge-haze-at: 44.44%;
+	--edge-haze-span: 33.33%;
+	--edge-haze-blur: 1.67px;
+}
+
+.edge-haze .l:nth-child(4) {
+	--edge-haze-at: 33.33%;
+	--edge-haze-span: 33.33%;
+	--edge-haze-blur: 2.16px;
+}
+
+.edge-haze .l:nth-child(5) {
+	--edge-haze-at: 22.22%;
+	--edge-haze-span: 33.33%;
+	--edge-haze-blur: 2.78px;
+}
+
+.edge-haze .l:nth-child(6) {
+	--edge-haze-at: 11.11%;
+	--edge-haze-span: 33.33%;
+	--edge-haze-blur: 3.6px;
+}
+
+.edge-haze .l:nth-child(7) {
+	--edge-haze-at: 0%;
+	--edge-haze-span: 33.33%;
+	--edge-haze-blur: 4.65px;
+}
+
+.edge-haze .l:nth-child(8) {
+	--edge-haze-at: 0%;
+	--edge-haze-span: 22.22%;
+	--edge-haze-blur: 6px;
+	--edge-haze-fade: var(--edge-haze-fade-end);
+}
+
+.edge-haze > div > .tn {
+	inset: 0;
+}
+
+.edge-haze > .t > .tn {
+	background-image: linear-gradient(to bottom, var(--edge-haze-ramp));
+}
+
+.edge-haze > .b > .tn {
+	background-image: linear-gradient(to top, var(--edge-haze-ramp));
+}
+
+.edge-haze > .t > .cap {
+	bottom: 100%;
+	left: 0;
+	width: 100%;
+	height: env(safe-area-inset-top, 0);
+	background: oklch(from var(--canvas) l c h / 59%);
+	-webkit-backdrop-filter: blur(6px);
+	backdrop-filter: blur(6px);
+}
+
+@media (pointer: coarse) {
+	.edge-haze .l:nth-child(1) {
+		--edge-haze-at: 62.5%;
+		--edge-haze-span: 37.5%;
+		--edge-haze-blur: 1px;
+	}
+
+	.edge-haze .l:nth-child(2) {
+		--edge-haze-at: 50%;
+		--edge-haze-span: 37.5%;
+		--edge-haze-blur: 1.31px;
+	}
+
+	.edge-haze .l:nth-child(3) {
+		--edge-haze-at: 37.5%;
+		--edge-haze-span: 37.5%;
+		--edge-haze-blur: 1.71px;
+	}
+
+	.edge-haze .l:nth-child(4) {
+		--edge-haze-at: 25%;
+		--edge-haze-span: 37.5%;
+		--edge-haze-blur: 2.24px;
+	}
+
+	.edge-haze .l:nth-child(5) {
+		--edge-haze-at: 12.5%;
+		--edge-haze-span: 37.5%;
+		--edge-haze-blur: 2.92px;
+	}
+
+	.edge-haze .l:nth-child(6) {
+		--edge-haze-at: 0%;
+		--edge-haze-span: 37.5%;
+		--edge-haze-blur: 3.82px;
+	}
+
+	.edge-haze .l:nth-child(7) {
+		--edge-haze-at: 0%;
+		--edge-haze-span: 25%;
+		--edge-haze-blur: 5px;
+		--edge-haze-fade: var(--edge-haze-fade-end);
+	}
+
+	.edge-haze .l:nth-child(n + 8) {
+		display: none;
+	}
+
+	.edge-haze > .t > .cap {
+		-webkit-backdrop-filter: blur(5px);
+		backdrop-filter: blur(5px);
+	}
+}
+
+@media (width >= 85rem) and (pointer: fine) {
+	.edge-haze {
+		--edge-haze-feather: linear-gradient(
+			to right,
+			transparent,
+			#000 48px,
+			#000 calc(100% - 48px),
+			transparent
+		);
+	}
+
+	.edge-haze > div > .l {
+		-webkit-mask-image: var(--edge-haze-fade), var(--edge-haze-feather);
+		-webkit-mask-composite: source-in;
+		mask-image: var(--edge-haze-fade), var(--edge-haze-feather);
+		mask-composite: intersect;
+	}
+
+	.edge-haze > div > .tn {
+		-webkit-mask-image: var(--edge-haze-feather);
+		mask-image: var(--edge-haze-feather);
+	}
+}
+
+.edge-haze > .t > i {
+	animation: edge-haze-in linear both;
+	animation-timeline: scroll(root block);
+	animation-range: 0 var(--edge-haze-top);
+}
+
+.edge-haze > .b > i {
+	animation: edge-haze-out linear both;
+	animation-timeline: scroll(root block);
+	animation-range: calc(100% - var(--edge-haze-bottom)) 100%;
+}
+
+@keyframes edge-haze-in {
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes edge-haze-out {
+	from {
+		opacity: 1;
+	}
+
+	to {
+		opacity: 0;
+	}
+}
+
+@supports not (animation-timeline: scroll()) {
+	.edge-haze > .t > i {
+		animation: none;
+		opacity: var(--edge-haze-top-opacity, 0);
+	}
+
+	.edge-haze > .b > i {
+		animation: none;
+		opacity: var(--edge-haze-bottom-opacity, 1);
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.edge-haze {
+		--edge-haze-ramp:
+			oklch(from var(--canvas) l c h / 94%) 0%,
+			oklch(from var(--canvas) l c h / 86%) 22%,
+			oklch(from var(--canvas) l c h / 64%) 45%,
+			oklch(from var(--canvas) l c h / 34%) 70%,
+			transparent 100%;
+	}
+
+	.edge-haze > div > .l {
+		display: none;
+	}
+
+	.edge-haze > div > .tn {
+		-webkit-mask-image: none;
+		mask-image: none;
+	}
+
+	.edge-haze > .t > .cap {
+		background: oklch(from var(--canvas) l c h / 94%);
+		-webkit-backdrop-filter: none;
+		backdrop-filter: none;
+	}
+}
+
+@supports not (
+	(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+	.edge-haze {
+		--edge-haze-ramp:
+			oklch(from var(--canvas) l c h / 94%) 0%,
+			oklch(from var(--canvas) l c h / 86%) 22%,
+			oklch(from var(--canvas) l c h / 64%) 45%,
+			oklch(from var(--canvas) l c h / 34%) 70%,
+			transparent 100%;
+	}
+
+	.edge-haze > div > .l {
+		display: none;
+	}
+
+	.edge-haze > div > .tn {
+		-webkit-mask-image: none;
+		mask-image: none;
+	}
+
+	.edge-haze > .t > .cap {
+		background: oklch(from var(--canvas) l c h / 94%);
+		-webkit-backdrop-filter: none;
+		backdrop-filter: none;
+	}
+}
+
+@media (forced-colors: active) {
+	.edge-haze {
+		display: none;
+	}
+}
+
+html {
+	scroll-padding-block: calc(
+			var(--edge-haze-top) + env(safe-area-inset-top, 0px)
+		)
+		calc(var(--edge-haze-bottom) + var(--mobile-bar-total));
+}
+
+@media (width >= 64rem) {
+	html {
+		scroll-padding-block: max(
+				calc(var(--edge-haze-top) + env(safe-area-inset-top, 0px)),
+				4.625rem
+			)
+			var(--edge-haze-bottom);
+	}
+}
+
+@media print {
+	.edge-haze {
+		display: none;
+	}
+
+	html {
+		scroll-padding-block: 0;
+	}
+}
+
+:root [data-under-edge] {
+	animation-play-state: paused;
+}

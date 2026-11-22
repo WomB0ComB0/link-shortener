@@ -15,132 +15,173 @@
 -->
 
 <template>
-  <div class="min-h-screen bg-white">
-    <!-- Header -->
-    <AppHeader>
-      <template #nav>
-        <NuxtLink to="/create" class="mr-2">
-          <UButton
-            icon="i-heroicons-plus"
-            color="primary"
-            variant="soft"
-            class="rounded-lg"
-          >
-            Create Link
-          </UButton>
-        </NuxtLink>
+	<PageShell
+		eyebrow="links.mikeodnis.dev"
+		title="Links"
+		description="Fast, verified short links with click analytics and programmatic API access."
+	>
+		<template #actions>
+			<NuxtLink to="/create" class="console-btn console-btn-primary">
+				<UIcon name="i-heroicons-plus" class="size-4 shrink-0" aria-hidden="true" />
+				<span>Create Link</span>
+			</NuxtLink>
 
-        <NuxtLink v-if="!isAuthenticated" to="/auth">
-          <UButton
-            icon="i-heroicons-user"
-            color="primary"
-            variant="soft"
-            class="rounded-lg"
-          >
-            Login
-          </UButton>
-        </NuxtLink>
+			<NuxtLink
+				v-if="!isAuthenticated"
+				to="/auth"
+				class="console-btn console-btn-outline"
+			>
+				<UIcon name="i-heroicons-user" class="size-4 shrink-0" aria-hidden="true" />
+				<span>Login</span>
+			</NuxtLink>
 
-        <template v-else>
-          <NuxtLink to="/dashboard">
-            <UButton
-              variant="soft"
-              color="primary"
-              icon="i-heroicons-chart-bar"
-              class="rounded-lg"
-            >
-              Dashboard
-            </UButton>
-          </NuxtLink>
-          <UButton
-            @click="handleLogout"
-            variant="ghost"
-            color="neutral"
-            class="rounded-lg"
-            icon="i-heroicons-arrow-left-on-rectangle"
-          >
-            Logout
-          </UButton>
-        </template>
-      </template>
-    </AppHeader>
+			<template v-else>
+				<NuxtLink to="/dashboard" class="console-btn console-btn-outline">
+					<UIcon name="i-heroicons-chart-bar" class="size-4 shrink-0" aria-hidden="true" />
+					<span>Dashboard</span>
+				</NuxtLink>
+				<button
+					type="button"
+					class="console-btn console-btn-ghost"
+					@click="handleLogout"
+				>
+					<UIcon
+						name="i-heroicons-arrow-left-on-rectangle"
+						class="size-4 shrink-0"
+						aria-hidden="true"
+					/>
+					<span>Logout</span>
+				</button>
+			</template>
+		</template>
 
-    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16">
-      <!-- Links grid section -->
-        <LinksGrid :links="publicLinks" />
-    </main>
-  </div>
+		<template #stats>
+			<StatStrip
+				aria-label="Public links overview"
+				:loading="loading"
+				:placeholder-count="3"
+				:items="statItems"
+			/>
+		</template>
+
+		<section aria-labelledby="public-links-heading" class="space-y-4">
+			<div class="flex items-center justify-between gap-4">
+				<h2 id="public-links-heading" class="tile-label text-muted-foreground">
+					Recent public links
+				</h2>
+				<span
+					class="tile-label inline-flex items-center gap-1.5"
+					:class="fetchError ? 'text-down' : 'text-live'"
+				>
+					<StatusDot :tone="fetchError ? 'down' : 'live'" :pulse="!fetchError" />
+					<span>{{ fetchError ? "Degraded" : "Live" }}</span>
+				</span>
+			</div>
+
+			<DataErrorCard
+				v-if="fetchError && !loading"
+				title="Could not load public links"
+				:message="errorMessage"
+				:retrying="loading"
+				@retry="refresh()"
+			/>
+
+			<LinksGrid
+				v-else-if="loading || publicLinks.length > 0"
+				:links="publicLinks"
+				:loading="loading"
+				:skeleton-count="6"
+			/>
+
+			<div
+				v-else
+				class="rounded-tile border border-hairline bg-surface-1 px-6 py-14 text-center"
+			>
+				<div
+					class="mx-auto mb-4 flex size-12 items-center justify-center rounded-tile border border-hairline bg-surface-2 text-faint"
+				>
+					<UIcon name="i-heroicons-link" class="size-6" aria-hidden="true" />
+				</div>
+				<h3 class="tile-title-lg text-foreground">No public links yet</h3>
+				<p class="mx-auto mt-1.5 max-w-[42ch] text-body-sm text-muted-foreground">
+					Shorten a URL to publish your first verified redirect here.
+				</p>
+			</div>
+		</section>
+	</PageShell>
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref } from "vue";
-import { useFetcher } from "../composables";
+import { computed, onMounted } from "vue";
+import { useAuth } from "../composables";
 
-const { get: fetchGet } = useFetcher();
+interface PublicLink {
+	id: string;
+	shortUrl: string;
+	originalUrl: string;
+	customAlias?: string | null;
+	createdAt: string;
+	totalClicks?: number;
+}
 
-const authToken = ref<string | null>(null);
-const currentUser = ref<any>(null);
-const publicLinks = ref<any[]>([]);
+const { isAuthenticated, syncFromStorage, logout } = useAuth();
 
-const isAuthenticated = computed(
-	() => !!authToken.value && !!currentUser.value,
-);
-
-onMounted(() => {
-	if (process.client) {
-		const token = localStorage.getItem("auth_token");
-		if (token) {
-			authToken.value = token;
-			fetchCurrentUser();
-		}
-	}
-	fetchPublicLinks();
+const {
+	data,
+	status,
+	error: fetchError,
+	refresh,
+} = useLazyFetch<PublicLink[]>("/api/links/public", {
+	key: "public-links",
+	query: { limit: 12 },
+	default: () => [],
 });
 
-async function fetchPublicLinks() {
-	try {
-		const links = await fetchGet(
-			"/api/links/public",
-			{
-				retries: 2,
-				timeout: 10000,
-				onError: (error) => {
-					console.error("Failed to fetch public links:", error);
-				},
-			},
-			{ limit: 12 },
-		);
-		publicLinks.value = Array.isArray(links) ? links : [];
-	} catch (err) {
-		console.error("Failed to fetch public links:", err);
-		publicLinks.value = [];
-	}
-}
+const publicLinks = computed(() => (Array.isArray(data.value) ? data.value : []));
+const loading = computed(
+	() => status.value === "pending" || status.value === "idle",
+);
 
-async function fetchCurrentUser() {
-	if (!authToken.value) return;
+const errorMessage = computed(
+	() =>
+		fetchError.value?.data?.message ||
+		fetchError.value?.message ||
+		"Failed to reach the links feed. Please try again.",
+);
 
-	try {
-		const user = await fetchGet("/api/auth/me", {
-			headers: {
-				Authorization: `Bearer ${authToken.value}`,
-			},
-			retries: 1,
-			timeout: 5000,
-		});
-		currentUser.value = user;
-	} catch (err) {
-		handleLogout();
-	}
-}
+const totalClicks = computed(() =>
+	publicLinks.value.reduce(
+		(sum, link) =>
+			sum + (typeof link.totalClicks === "number" ? link.totalClicks : 0),
+		0,
+	),
+);
+
+const customAliases = computed(
+	() => publicLinks.value.filter((link) => Boolean(link.customAlias)).length,
+);
+
+const statItems = computed(() => [
+	{
+		label: "public links",
+		value: fetchError.value ? null : publicLinks.value.length,
+	},
+	{
+		label: "total clicks",
+		value: fetchError.value ? null : totalClicks.value,
+	},
+	{
+		label: "custom aliases",
+		value: fetchError.value ? null : customAliases.value,
+	},
+]);
+
+onMounted(() => {
+	syncFromStorage();
+});
 
 function handleLogout() {
-	authToken.value = null;
-	currentUser.value = null;
-
-	if (process.client) {
-		localStorage.removeItem("auth_token");
-	}
+	logout();
 }
 
 useSeoMeta({
