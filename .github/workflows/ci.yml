@@ -2,61 +2,38 @@ name: Nuxt Link Shortener CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [master]
   pull_request:
-    branches: [ main, master ]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  quality:
+    name: Test and build
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 20
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          node-version: '23'
-          cache: 'npm'
-          
+          bun-version: 1.4.4
+
       - name: Install dependencies
-        run: npm ci
-      
-      - name: Type check
-        run: npx nuxt typecheck
-      
-      # Run tests with vitest if any test files exist
-      - name: Check for test files
-        id: check-tests
-        run: |
-          if find . -type f -name "*.test.ts" -o -name "*.test.js" -o -name "*.spec.ts" -o -name "*.spec.js" | grep -q .; then
-            echo "has_tests=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_tests=false" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Run tests with vitest
-        if: steps.check-tests.outputs.has_tests == 'true'
-        run: npx vitest run
-      
-      # Build validation
-      - name: Build application
-        run: npm run build
-      
-      # Setup Deno for additional checks
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-      
-      # Format check with Deno
-      - name: Check formatting
-        run: deno fmt --check
-      
-      # Lint with Deno
-      - name: Lint code
-        run: deno lint
-      
-      # Uncomment if you have linting configured
-      # - name: Lint with npm
-      #   run: npm run lint 
+        run: bun install --frozen-lockfile
+
+      - name: Unit tests
+        run: bun run test
+
+      - name: Production build
+        run: bun run build

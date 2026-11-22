@@ -18,11 +18,14 @@ logs
 .fleet
 .idea
 
+# Test outputs
+playwright-report
+test-results
+
 # Local env files
 .env
 .env.*
 !.env.example
-bun.lock
 pnpm-lock.yaml
 yarn.lock
 package-lock.json

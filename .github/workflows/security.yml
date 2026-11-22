@@ -2,36 +2,37 @@ name: Security Checks
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [master]
   pull_request:
-    branches: [ main, master ]
+    branches: [master]
   schedule:
-    - cron: '0 0 * * 0' # Run once per week on Sunday at midnight
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  security:
+  audit:
+    name: Audit production dependencies
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          deno-version: v1.x
-          
-      - name: Run security checks
-        run: deno task check
-        continue-on-error: true  # Don't fail the workflow if issues are found
-      
-      - name: Audit dependencies
-        run: deno audit
-        continue-on-error: true  # Don't fail the workflow if vulnerabilities are found
-      
-      # Optional: Run more advanced security scans with tools like Snyk if needed
-      # - name: Snyk vulnerability scan
-      #   uses: snyk/actions/node@master
-      #   env:
-      #     SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      #   with:
-      #     args: --severity-threshold=high
+          bun-version: 1.4.4
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Audit high and critical vulnerabilities
+        run: bun audit --production --audit-level=high

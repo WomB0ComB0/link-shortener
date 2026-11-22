@@ -28,5 +28,8 @@ export default defineConfig({
 		}),
 		vueJsx(),
 	],
-	test: {},
+	test: {
+		include: ["server/**/*.test.ts", "lib/**/*.test.ts", "tests/**/*.test.ts"],
+		exclude: ["src/e2e/**", "node_modules/**", ".nuxt/**"],
+	},
 });
