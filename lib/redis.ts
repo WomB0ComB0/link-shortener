@@ -15,36 +15,26 @@
  */
 
 /**
- * Upstash Redis client singleton for serverless-compatible Redis operations.
+ * General / admin Upstash Redis client singleton.
  *
- * This client uses the Upstash REST API for edge-compatible, serverless Redis access.
- * It's configured to work with both Nuxt server routes and edge middleware.
+ * Per-request guard lookups use the dedicated low-latency, timeout-bounded
+ * client in `./redis-guard.ts` instead.
  *
  * @module lib/redis
- * @author Mike Odnis
- * @license Apache-2.0
  */
 
 import { Redis } from "@upstash/redis";
 
+export function isRedisConfigured(): boolean {
+	return Boolean(
+		process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
+	);
+}
+
 /**
- * Singleton instance of the Upstash Redis client.
- *
- * Configured with:
- * - REST API for edge compatibility
- * - keepAlive for persistent connections
- * - readYourWrites for consistency guarantees
- *
- * @const
- * @readonly
- * @public
- * @type {Redis}
- * @example
- * import { redis } from '~/lib/redis'
- * await redis.set('key', 'value')
- * const value = await redis.get('key')
- *
- * @see {@link https://upstash.com/docs/redis/features/restapi Upstash Redis REST API}
+ * Singleton Upstash Redis client for admin writes and general storage.
+ * - `keepAlive`: persistent HTTP connections where supported
+ * - `readYourWrites`: subsequent reads reflect preceding admin writes
  */
 export const redis = new Redis({
 	url: process.env.UPSTASH_REDIS_REST_URL || "",

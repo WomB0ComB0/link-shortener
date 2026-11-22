@@ -15,46 +15,35 @@
  */
 
 import { createError, defineEventHandler } from "h3";
-import { isIdentifierBanned } from "../../lib/banlist";
+import { apiGuard } from "../../lib/api-guard";
 import { getClientIP } from "../../lib/get-ip";
-import {
-	getRateLimitReset,
-	type RateLimitingType,
-	rateLimiter,
-} from "../../lib/rate-limit";
+import { getRateLimitReset } from "../../lib/rate-limit";
 
 /**
- * Rate limiting middleware for API routes
+ * Pipelined Redis ban, CIDR, slow-mode, and sliding-window rate-limit middleware.
  *
- * This middleware applies rate limiting based on the route path:
- * - /api/auth/* - auth rate limiting (5 req/10s)
- * - /api/links/create - create rate limiting (10 req/60s)
- * - /api/links/analytics - ai rate limiting (20 req/24h)
- * - /api/* - default API rate limiting (30 req/60s)
- *
- * It also checks for banned IPs before applying rate limits.
+ * Backed by `lib/api-guard.ts` with a 300ms time budget and circuit breaker so
+ * Redis hiccups never stall API traffic.
  */
 export default defineEventHandler(async (event) => {
-	const path = event.path;
+	const rawPath = event.path || "/";
+	const pathname = rawPath.split("?")[0] || "/";
 
-	// Skip rate limiting for non-API routes
-	if (!path.startsWith("/api/")) {
+	// Skip non-API routes immediately
+	if (!pathname.startsWith("/api/")) {
 		return;
 	}
 
-	// Get client IP
+	const method = event.node?.req?.method || "GET";
 	const clientIp = getClientIP(event);
 
-	// Skip localhost in development
-	if (
-		process.env.NODE_ENV === "development" &&
-		(clientIp === "127.0.0.1" || clientIp === "::1")
-	) {
-		return;
-	}
+	const verdict = await apiGuard.check({
+		method,
+		pathname,
+		clientIp,
+	});
 
-	// Check if IP is banned
-	if (await isIdentifierBanned(clientIp)) {
+	if (verdict.kind === "ban") {
 		throw createError({
 			statusCode: 403,
 			statusMessage: "Forbidden",
@@ -62,41 +51,45 @@ export default defineEventHandler(async (event) => {
 		});
 	}
 
-	// Determine rate limiting type based on path
-	let rateLimitingType: RateLimitingType = "api";
+	if (verdict.kind === "limit") {
+		const retryAfterSeconds = Math.max(
+			1,
+			Math.ceil((verdict.reset - Date.now()) / 1000),
+		);
+		event.node.res.setHeader("X-RateLimit-Limit", String(verdict.limit));
+		event.node.res.setHeader(
+			"X-RateLimit-Remaining",
+			String(verdict.remaining),
+		);
+		event.node.res.setHeader("X-RateLimit-Reset", String(verdict.reset));
+		event.node.res.setHeader("Retry-After", String(retryAfterSeconds));
 
-	if (path.startsWith("/api/auth")) {
-		rateLimitingType = "auth";
-	} else if (path === "/api/links/create") {
-		rateLimitingType = "create";
-	} else if (path === "/api/links/analytics") {
-		rateLimitingType = "ai";
-	}
-
-	// Apply rate limiting
-	const limiter = rateLimiter(rateLimitingType);
-	const result = await limiter({ identifier: clientIp });
-
-	// Set rate limit headers
-	event.node.res.setHeader("X-RateLimit-Limit", result.limit.toString());
-	event.node.res.setHeader(
-		"X-RateLimit-Remaining",
-		result.remaining.toString(),
-	);
-	event.node.res.setHeader("X-RateLimit-Reset", result.reset.toString());
-
-	// Check if rate limit exceeded
-	if (!result.success) {
+		const resetFormatted = getRateLimitReset(verdict.reset);
 		throw createError({
 			statusCode: 429,
 			statusMessage: "Too Many Requests",
-			message: `Please try again later. Reset time: ${getRateLimitReset(result.reset)}`,
+			message: `Please try again later. Reset time: ${resetFormatted}`,
 			data: {
-				retryAfter: getRateLimitReset(result.reset),
-				limit: result.limit,
+				retryAfter: resetFormatted,
+				limit: verdict.limit,
 				remaining: 0,
-				reset: result.reset,
+				reset: verdict.reset,
 			},
 		});
+	}
+
+	if (verdict.rateLimit) {
+		event.node.res.setHeader(
+			"X-RateLimit-Limit",
+			String(verdict.rateLimit.limit),
+		);
+		event.node.res.setHeader(
+			"X-RateLimit-Remaining",
+			String(verdict.rateLimit.remaining),
+		);
+		event.node.res.setHeader(
+			"X-RateLimit-Reset",
+			String(verdict.rateLimit.reset),
+		);
 	}
 });

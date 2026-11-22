@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-/**
- * @interface BanMetadata
- * @public
- * @description Structure for storing metadata about a banned IP or identifier.
- *   - `reason`: Optional string describing the reason for the ban.
- *   - `ts`: Unix timestamp (ms) of when the ban was imposed.
- *   - `bannedBy`: Optional string for the user or system who issued the ban.
- */
+export interface BanEntryOptions {
+	reason?: string;
+	seconds?: number;
+	bannedBy?: string;
+}
+
 export interface BanMetadata {
 	reason?: string;
 	ts: number;
+	expiresAt: number | null;
 	bannedBy?: string;
 }
