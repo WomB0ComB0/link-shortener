@@ -84,4 +84,56 @@ describe("link analytics endpoint", () => {
 			clicks: [],
 		});
 	});
+
+	it("serializes populated click events without Schema ParseError", async () => {
+		getQuery.mockReturnValueOnce({
+			shortLinkId: "550e8400-e29b-41d4-a716-446655440000",
+		});
+		getUserIdFromHeaders.mockReturnValueOnce(null);
+		executeQuery.mockResolvedValueOnce({
+			data: {
+				short_links: [
+					{
+						id: "550e8400-e29b-41d4-a716-446655440000",
+						user_id: null,
+						short_url: "resume-tour",
+						original_url: "https://mikeodnis.dev/resume",
+						custom_alias: "resume-tour",
+						created_at: "2026-11-22T00:00:00.000Z",
+						is_active: true,
+						expires_at: null,
+						clicks: [
+							{
+								id: "660e8400-e29b-41d4-a716-446655440001",
+								timestamp: "2026-11-22T20:05:52.703Z",
+								user_agent: "Mozilla/5.0 Chrome/131.0",
+								referrer: "https://www.linkedin.com/in/mikeodnis",
+								ip_address: "::1",
+								country: "United States",
+								city: "New York",
+							},
+						],
+						clicks_aggregate: { aggregate: { count: 1 } },
+					},
+				],
+			},
+			error: null,
+		});
+
+		const result = await analyticsHandler({} as never);
+
+		expect(result).toMatchObject({
+			id: "550e8400-e29b-41d4-a716-446655440000",
+			shortUrl: "resume-tour",
+			totalClicks: 1,
+			clicks: [
+				{
+					id: "660e8400-e29b-41d4-a716-446655440001",
+					referrer: "https://www.linkedin.com/in/mikeodnis",
+					country: "United States",
+					city: "New York",
+				},
+			],
+		});
+	});
 });

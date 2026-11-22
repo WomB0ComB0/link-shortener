@@ -17,6 +17,7 @@
 import { createError, defineEventHandler, getQuery } from "h3";
 import { GET_LINK_ANALYTICS } from "../../../lib/graphql/operations";
 import {
+	Click,
 	encodeSync,
 	ShortLinkWithAnalytics,
 	UUIDSchema,
@@ -178,17 +179,20 @@ export default defineEventHandler(async (event) => {
 		});
 	}
 
-	// Map clicks to the schema format
-	const clicksData = link.clicks.map((click) => ({
-		id: click.id,
-		shortLinkId,
-		timestamp: new Date(click.timestamp),
-		userAgent: click.user_agent || undefined,
-		referrer: click.referrer || undefined,
-		ipAddress: click.ip_address || undefined,
-		country: click.country || undefined,
-		city: click.city || undefined,
-	}));
+	// Map clicks to the Effect Schema Click class format
+	const clicksData = link.clicks.map(
+		(click) =>
+			new Click({
+				id: click.id,
+				shortLinkId,
+				timestamp: new Date(click.timestamp),
+				userAgent: click.user_agent || undefined,
+				referrer: click.referrer || undefined,
+				ipAddress: undefined,
+				country: click.country || undefined,
+				city: click.city || undefined,
+			}),
+	);
 
 	// Create response with full link details and analytics
 	const response = new ShortLinkWithAnalytics({
