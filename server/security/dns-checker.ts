@@ -16,11 +16,12 @@
 
 /**
  * DNS Security Checker Module
- * Validates DNS records and detects suspicious configurations with Effect Schema
+ * Validates DNS records and detects private/reserved IPv4 & IPv6 rebinding and CNAME cloaking.
  */
 
 import dns from "node:dns/promises";
 import * as S from "@effect/schema/Schema";
+import { classifyIpAddress, isBlockedHostname } from "./ip-utils";
 
 // Effect Schema for MX record
 export class MxRecord extends S.Class<MxRecord>("MxRecord")({
@@ -51,7 +52,7 @@ export class DnsCheckResult extends S.Class<DnsCheckResult>("DnsCheckResult")({
 }) {}
 
 /**
- * Comprehensive DNS validation and security checks
+ * Comprehensive DNS validation and SSRF/rebinding security checks
  */
 export async function checkDns(hostname: string): Promise<DnsCheckResult> {
 	const errors: string[] = [];
@@ -63,87 +64,120 @@ export async function checkDns(hostname: string): Promise<DnsCheckResult> {
 	let mxRecords: Array<{ exchange: string; priority: number }> = [];
 	let cnameRecords: string[] = [];
 
-	// Check A records (IPv4)
-	try {
-		aRecords = await dns.resolve4(hostname);
-	} catch (error: any) {
-		if (error.code === "ENOTFOUND") {
+	// If hostname is itself an IP literal, validate it directly without DNS resolution
+	const literalIp = classifyIpAddress(hostname);
+	if (literalIp.isIp) {
+		if (literalIp.isRestricted) {
+			errors.push(
+				`Domain resolves to ${literalIp.reason} IP address: ${literalIp.normalized}`,
+			);
+		}
+		if (literalIp.version === 4) {
+			aRecords = [literalIp.normalized];
+		} else if (literalIp.version === 6) {
+			aaaaRecords = [literalIp.normalized];
+		}
+		return new DnsCheckResult({
+			isValid: errors.length === 0,
+			hostname,
+			hasARecord: aRecords.length > 0,
+			hasAAAARecord: aaaaRecords.length > 0,
+			hasMxRecord: false,
+			hasCnameRecord: false,
+			aRecords,
+			aaaaRecords,
+			mxRecords,
+			cnameRecords,
+			errors,
+			warnings,
+			resolutionTime: Date.now() - startTime,
+		});
+	}
+
+	// Run DNS record lookups in parallel
+	const [aResult, aaaaResult, mxResult, cnameResult] = await Promise.allSettled([
+		dns.resolve4(hostname),
+		dns.resolve6(hostname),
+		dns.resolveMx(hostname),
+		dns.resolveCname(hostname),
+	]);
+
+	if (aResult.status === "fulfilled") {
+		aRecords = aResult.value;
+	} else {
+		const code = aResult.reason?.code;
+		if (code === "ENOTFOUND") {
 			errors.push("Domain does not exist (no DNS records found)");
-		} else if (error.code === "ENODATA") {
+		} else if (code === "ENODATA") {
 			warnings.push("No A (IPv4) records found");
+		} else if (code === "ESERVFAIL" || code === "EREFUSED" || code === "ETIMEOUT") {
+			warnings.push(`IPv4 DNS lookup failed (${code})`);
 		}
 	}
 
-	// Check AAAA records (IPv6)
-	try {
-		aaaaRecords = await dns.resolve6(hostname);
-	} catch (error: any) {
-		// IPv6 is not required, so we just note it
-		if (error.code !== "ENODATA" && error.code !== "ENOTFOUND") {
+	if (aaaaResult.status === "fulfilled") {
+		aaaaRecords = aaaaResult.value;
+	} else {
+		const code = aaaaResult.reason?.code;
+		if (code && code !== "ENODATA" && code !== "ENOTFOUND") {
 			warnings.push("Could not resolve IPv6 records");
 		}
 	}
 
-	// Check MX records (email)
-	try {
-		const mx = await dns.resolveMx(hostname);
-		mxRecords = mx.map((record) => ({
+	if (mxResult.status === "fulfilled") {
+		mxRecords = mxResult.value.map((record) => ({
 			exchange: record.exchange,
 			priority: record.priority,
 		}));
-	} catch (error: any) {
-		// MX records are not required for all domains
-		if (error.code !== "ENODATA" && error.code !== "ENOTFOUND") {
+	} else {
+		const code = mxResult.reason?.code;
+		if (code && code !== "ENODATA" && code !== "ENOTFOUND") {
 			warnings.push("Could not resolve MX records");
 		}
 	}
 
-	// Check CNAME records
-	try {
-		cnameRecords = await dns.resolveCname(hostname);
-	} catch (error: any) {
-		// CNAME is optional
-		if (error.code !== "ENODATA" && error.code !== "ENOTFOUND") {
+	if (cnameResult.status === "fulfilled") {
+		cnameRecords = cnameResult.value;
+	} else {
+		const code = cnameResult.reason?.code;
+		if (code && code !== "ENODATA" && code !== "ENOTFOUND") {
 			warnings.push("Could not resolve CNAME records");
 		}
 	}
 
-	// Validation checks
-	if (
-		aRecords.length === 0 &&
-		aaaaRecords.length === 0 &&
-		cnameRecords.length === 0
-	) {
-		errors.push("No valid DNS records found for this domain");
-	}
-
-	// Check for suspicious IP ranges
-	const suspiciousRanges = [
-		{ prefix: "0.", reason: "Reserved (current network)" },
-		{ prefix: "10.", reason: "Private network" },
-		{ prefix: "127.", reason: "Loopback" },
-		{ prefix: "169.254.", reason: "Link-local" },
-		{ prefix: "172.16.", reason: "Private network" },
-		{ prefix: "172.31.", reason: "Private network" },
-		{ prefix: "192.168.", reason: "Private network" },
-		{ prefix: "224.", reason: "Multicast" },
-		{ prefix: "240.", reason: "Reserved" },
-	];
-
-	for (const ip of aRecords) {
-		for (const range of suspiciousRanges) {
-			if (ip.startsWith(range.prefix)) {
-				errors.push(`Domain resolves to ${range.reason} IP address: ${ip}`);
-			}
+	// Must resolve to at least one A or AAAA record (dangling CNAME with no IP is unsafe/broken)
+	if (aRecords.length === 0 && aaaaRecords.length === 0) {
+		if (cnameRecords.length > 0) {
+			errors.push("Domain has a dangling CNAME with no resolvable IP records");
+		} else {
+			errors.push("No valid DNS records found for this domain");
 		}
 	}
 
-	// Check for newly registered domains (no MX records often indicates new/suspicious domain)
-	if (mxRecords.length === 0 && aRecords.length > 0) {
+	// Validate ALL resolved IPv4 and IPv6 addresses against full SSRF/private/reserved ranges
+	for (const ip of [...aRecords, ...aaaaRecords]) {
+		const classification = classifyIpAddress(ip);
+		if (classification.isRestricted) {
+			errors.push(
+				`Domain resolves to ${classification.reason} IP address: ${ip}`,
+			);
+		}
+	}
+
+	// Block CNAME cloaking targeting internal/local/metadata domains
+	for (const target of cnameRecords) {
+		const blocked = isBlockedHostname(target);
+		if (blocked.blocked) {
+			errors.push(`CNAME record points to restricted host: ${target}`);
+		}
+	}
+
+	// Newly registered domain signal
+	if (mxRecords.length === 0 && (aRecords.length > 0 || aaaaRecords.length > 0)) {
 		warnings.push("Domain has no email (MX) records, may be newly registered");
 	}
 
-	// Check for excessive A records (could indicate CDN or load balancing, or could be suspicious)
+	// Fast-flux / excessive A records signal
 	if (aRecords.length > 10) {
 		warnings.push(`Domain has ${aRecords.length} A records, verify legitimacy`);
 	}

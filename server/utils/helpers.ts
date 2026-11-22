@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { SHORT_URL_CHARSET, SHORT_URL_LENGTH } from "../constants/index.js";
 import {
 	validateCustomAlias,
@@ -76,6 +76,22 @@ export function generateApiKey(): string {
 }
 
 /**
+ * Hash an API key using SHA-256 for storage and constant-time lookup.
+ * High-entropy random API keys (256 bits) do not require a slow KDF.
+ */
+export function hashApiKey(rawKey: string): string {
+	return createHash("sha256").update(rawKey).digest("hex");
+}
+
+/**
+ * Produce a non-sensitive display mask for an API key (e.g. `sk_Ab12…9zXy`).
+ */
+export function maskApiKey(rawKey: string): string {
+	if (rawKey.length <= 12) return "sk_••••••••";
+	return `${rawKey.slice(0, 7)}…${rawKey.slice(-4)}`;
+}
+
+/**
  * Hash a password using SHA-256
  */
 export function hashPassword(password: string): string {
@@ -87,12 +103,21 @@ export function hashPassword(password: string): string {
  */
 export function verifyMasterPassword(provided: string): boolean {
 	const config = useRuntimeConfig();
-	const masterPasswordHash = config.MASTER_PASSWORD_HASH;
+	const rawHash = config.MASTER_PASSWORD_HASH;
+	const masterPasswordHash =
+		typeof rawHash === "string" ? rawHash.trim().toLowerCase() : "";
 
 	if (!masterPasswordHash) {
 		throw new Error("Master password not configured");
 	}
 
 	const providedHash = hashPassword(provided);
-	return providedHash === masterPasswordHash;
+	const expectedBuf = Buffer.from(masterPasswordHash, "utf8");
+	const actualBuf = Buffer.from(providedHash, "utf8");
+
+	if (expectedBuf.length !== actualBuf.length) {
+		return false;
+	}
+
+	return timingSafeEqual(expectedBuf, actualBuf);
 }

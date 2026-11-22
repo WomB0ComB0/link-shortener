@@ -34,10 +34,20 @@ export default defineEventHandler(async (event) => {
 		});
 	}
 
-	// Validate URL format
+	// Validate URL format & allowed protocols
 	try {
-		new URL(url);
-	} catch {
+		const parsed = new URL(url);
+		if (!["http:", "https:"].includes(parsed.protocol)) {
+			throw createError({
+				statusCode: 400,
+				statusMessage: "Bad Request",
+				message: "Only HTTP and HTTPS URLs can be verified",
+			});
+		}
+	} catch (err: any) {
+		if (err?.statusCode) {
+			throw err;
+		}
 		throw createError({
 			statusCode: 400,
 			statusMessage: "Bad Request",

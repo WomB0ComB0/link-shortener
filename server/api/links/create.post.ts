@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { createError, defineEventHandler, readBody } from "h3";
+import { timingSafeEqual } from "node:crypto";
+import { createError, defineEventHandler, getHeader, readBody } from "h3";
 import {
 	CREATE_SHORT_LINK,
 	GET_SHORT_LINK_BY_ALIAS,
@@ -34,36 +35,127 @@ import { executeMutation, executeQuery } from "../../../server/utils/graphql";
 import { generateShortCode } from "../../../server/utils/helpers";
 import { validateAsync } from "../../../server/utils/validation";
 
+function isValidAdminBypass(event: Parameters<typeof getHeader>[0]): boolean {
+	const configuredSecret = process.env.ADMIN_BYPASS_SECRET?.trim();
+	// Require a non-empty, strong secret (>= 16 chars) and explicit opt-in header
+	if (!configuredSecret || configuredSecret.length < 16) {
+		return false;
+	}
+
+	const skipRequested = getHeader(event, "x-skip-verification") === "true";
+	const providedSecret = getHeader(event, "x-admin-bypass")?.trim();
+	if (!skipRequested || !providedSecret) {
+		return false;
+	}
+
+	const expectedBuf = Buffer.from(configuredSecret, "utf8");
+	const actualBuf = Buffer.from(providedSecret, "utf8");
+	if (expectedBuf.length !== actualBuf.length) {
+		return false;
+	}
+
+	return timingSafeEqual(expectedBuf, actualBuf);
+}
+
+function summarizeVerification(verification: LinkVerificationResult) {
+	return {
+		isVerified: verification.isVerified,
+		overallRisk: verification.overallRisk,
+		riskScore: verification.riskScore,
+		criticalIssues: verification.summary.criticalIssues,
+		recommendations: verification.summary.recommendations,
+		finalUrl: verification.checks.redirectCheck?.finalUrl ?? verification.url,
+		redirectHops: verification.checks.redirectCheck?.hopCount ?? 0,
+		checks: {
+			url: {
+				passed: Boolean(verification.checks.urlValidation?.isValid),
+				warnings: verification.checks.urlValidation?.warnings?.length ?? 0,
+			},
+			dns: {
+				passed: Boolean(verification.checks.dnsCheck?.isValid),
+				warnings: verification.checks.dnsCheck?.warnings?.length ?? 0,
+			},
+			ssl: {
+				passed: Boolean(verification.checks.sslCheck?.isValid),
+				warnings: verification.checks.sslCheck?.warnings?.length ?? 0,
+			},
+			redirects: {
+				passed: Boolean(verification.checks.redirectCheck?.isValid),
+				warnings: verification.checks.redirectCheck?.warnings?.length ?? 0,
+			},
+			phishing: {
+				passed: !verification.checks.phishingCheck?.isPhishing,
+				warnings: verification.checks.phishingCheck?.warnings?.length ?? 0,
+			},
+			malware: {
+				passed:
+					(verification.checks.malwareCheck?.threats?.length ?? 0) === 0 &&
+					(process.env.SECURITY_REQUIRE_SAFE_BROWSING !== "true" ||
+						(verification.checks.malwareCheck?.errors?.length ?? 0) === 0),
+				warnings:
+					(verification.checks.malwareCheck?.warnings?.length ?? 0) +
+					(verification.checks.malwareCheck?.errors?.length ?? 0),
+			},
+		},
+	};
+}
+
+const RESERVED_ALIASES = new Set([
+	"api",
+	"auth",
+	"create",
+	"dashboard",
+	"keys",
+	"offline",
+	"admin",
+	"login",
+	"logout",
+	"register",
+	"health",
+	"status",
+	"assets",
+	"_nuxt",
+	"pwa",
+	"robots",
+	"sitemap",
+	"favicon",
+]);
+
 export default defineEventHandler(async (event) => {
-	// Try to get authenticated user ID from token
-	let authenticatedUserId: string | null = null;
-	try {
-		authenticatedUserId = await getUserIdFromHeaders(event);
-	} catch (error) {
-		// No valid auth token, continue without user ID
-		authenticatedUserId = null;
+	// Resolve authenticated user ID (set by auth middleware for session cookie, Bearer, or sk_ API key)
+	let authenticatedUserId: string | null = event.context?.user?.id ?? null;
+	if (!authenticatedUserId) {
+		try {
+			authenticatedUserId = await getUserIdFromHeaders(event);
+		} catch {
+			authenticatedUserId = null;
+		}
 	}
 
 	// Read and validate request body with Effect Schema
 	const rawBody = await readBody(event);
 	const validatedBody = await validateAsync(CreateShortLinkRequest, rawBody);
 
-	const { originalUrl, customAlias, userId, expiresAt } = validatedBody;
+	const { originalUrl, customAlias, expiresAt } = validatedBody;
 
-	// Use authenticated user ID if available, otherwise fall back to request userId
-	const effectiveUserId = authenticatedUserId || userId || null;
+	// Prevent route shadowing with reserved application paths
+	if (customAlias && RESERVED_ALIASES.has(customAlias.toLowerCase())) {
+		throw createError({
+			statusCode: 400,
+			statusMessage: "Bad Request",
+			message: `The custom alias "${customAlias}" is reserved. Please choose a different one.`,
+		});
+	}
+
+	// Never trust client-supplied userId from request body (prevents IDOR attribution spoofing)
+	const effectiveUserId = authenticatedUserId;
 
 	// ============================================
-	// SECURITY VERIFICATION PIPELINE
+	// STRICT 6-STAGE SECURITY VERIFICATION PIPELINE
 	// ============================================
+	const adminBypass = isValidAdminBypass(event);
 
-	const skipVerification =
-		event.node.req.headers["x-skip-verification"] === "true";
-	const isAdmin =
-		event.node.req.headers["x-admin-bypass"] ===
-		process.env.ADMIN_BYPASS_SECRET;
-
-	if (!skipVerification && !isAdmin) {
+	if (!adminBypass) {
 		try {
 			const verification: LinkVerificationResult = await verifyLink(
 				originalUrl,
@@ -75,43 +167,30 @@ export default defineEventHandler(async (event) => {
 
 			// Store verification result in request context for later use
 			event.context.verification = verification;
+			const verificationSummary = summarizeVerification(verification);
 
-			// Block critical risk URLs
-			if (verification.overallRisk === "critical") {
+			// Strict enforcement: block any critical/high risk or unverified URL
+			if (
+				!verification.isVerified ||
+				verification.overallRisk === "critical" ||
+				verification.overallRisk === "high"
+			) {
+				const reasonList =
+					verification.summary.criticalIssues.length > 0
+						? verification.summary.criticalIssues.join("; ")
+						: `Risk score ${verification.riskScore}/100 (${verification.overallRisk})`;
+
 				throw createError({
 					statusCode: 403,
 					statusMessage: "Security Violation",
-					message:
-						"URL failed security verification: " +
-						verification.summary.criticalIssues.join(", "),
+					message: `URL failed security verification: ${reasonList}`,
 					data: {
-						verification,
+						verification: verificationSummary,
 					},
 				});
 			}
 
-			// Warn on high risk URLs
-			if (verification.overallRisk === "high") {
-				console.warn(`High-risk URL detected: ${originalUrl}`, {
-					riskScore: verification.riskScore,
-					criticalIssues: verification.summary.criticalIssues,
-				});
-
-				// For non-authenticated users, block high-risk URLs
-				if (!authenticatedUserId) {
-					throw createError({
-						statusCode: 403,
-						statusMessage: "Security Warning",
-						message:
-							"URL has high security risk. Please sign in to proceed with caution.",
-						data: {
-							verification,
-						},
-					});
-				}
-			}
-
-			// Log medium risk URLs
+			// Log medium risk URLs that still passed all hard checks
 			if (verification.overallRisk === "medium") {
 				console.info(`Medium-risk URL: ${originalUrl}`, {
 					riskScore: verification.riskScore,
@@ -119,13 +198,18 @@ export default defineEventHandler(async (event) => {
 				});
 			}
 		} catch (verificationError: any) {
-			// If verification itself fails, log but don't block (fail open)
-			if (verificationError.statusCode) {
-				throw verificationError; // Re-throw our own errors
+			if (verificationError?.statusCode) {
+				throw verificationError; // Re-throw structured HTTP errors
 			}
 
+			// Fail closed on unexpected security pipeline failures
 			console.error("Verification pipeline error:", verificationError);
-			// Continue with link creation but log the error
+			throw createError({
+				statusCode: 503,
+				statusMessage: "Security Verification Unavailable",
+				message:
+					"Unable to complete security verification for this URL. Please try again.",
+			});
 		}
 	}
 
@@ -190,6 +274,7 @@ export default defineEventHandler(async (event) => {
 		shortUrl,
 		customAlias: customAlias || null,
 		userId: effectiveUserId,
+		expiresAt: expiresAt ? expiresAt.toISOString() : null,
 	});
 
 	if (mutationError || !result) {
@@ -218,12 +303,7 @@ export default defineEventHandler(async (event) => {
 	if (event.context.verification) {
 		return {
 			...encodedResponse,
-			verification: {
-				isVerified: event.context.verification.isVerified,
-				overallRisk: event.context.verification.overallRisk,
-				riskScore: event.context.verification.riskScore,
-				recommendations: event.context.verification.summary.recommendations,
-			},
+			verification: summarizeVerification(event.context.verification),
 		};
 	}
 

@@ -23,6 +23,7 @@
 import { FetchHttpClient } from "@effect/platform";
 import { Effect, Schema } from "effect";
 import { post } from "../../../lib/fetcher";
+import { validateUUID } from "../../schemas/index";
 
 // Response schema for API key revocation
 const RevokeApiKeyResponseSchema = Schema.Struct({
@@ -51,13 +52,13 @@ export default defineEventHandler(async (event) => {
 			});
 		}
 
-		const body = await readBody(event);
-		const { keyId } = body;
+		const body = (await readBody(event)) ?? {};
+		const keyId = body?.keyId;
 
-		if (!keyId || typeof keyId !== "string") {
+		if (!keyId || typeof keyId !== "string" || !validateUUID(keyId)) {
 			throw createError({
 				statusCode: 400,
-				message: "API key ID is required",
+				message: "A valid API key UUID is required",
 			});
 		}
 
@@ -127,9 +128,10 @@ export default defineEventHandler(async (event) => {
 			throw error;
 		}
 
+		console.error("Failed to revoke API key:", error);
 		throw createError({
 			statusCode: 500,
-			message: error.message || "Failed to revoke API key",
+			message: "Failed to revoke API key",
 		});
 	}
 });

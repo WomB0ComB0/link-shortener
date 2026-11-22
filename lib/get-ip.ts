@@ -16,69 +16,48 @@
 
 import type { H3Event } from "h3";
 
-/**
- * Extracts the first value from a header value, handling arrays and comma-separated lists.
- *
- * @function
- * @private
- * @param {string | string[] | null | undefined} value - Header value to extract from. Can be a string, array, null or undefined.
- * @returns {string | undefined} The first value found, or undefined if not present.
- * @example
- * first("123, 456"); // "123"
- * first(["abc", "def"]); // "abc"
- */
 const first = (
 	value: string | string[] | null | undefined,
 ): string | undefined => {
 	if (!value) return undefined;
-	return Array.isArray(value) ? value[0] : value.split(",")[0]?.trim();
+	return Array.isArray(value) ? value[0]?.trim() : value.split(",")[0]?.trim();
 };
 
 /**
- * Retrieves the originating client IP address from a request, supporting various cloud and proxy headers.
- * Priority order: CF-Connecting-IP → X-Real-IP → X-Forwarded-For → fallback to 127.0.0.1.
+ * Extracts the originating client IP address in spoofing-resistant header order.
  *
- * Handles requests originating from Cloudflare, Vercel, or other reverse proxies by parsing the corresponding HTTP headers.
- *
- * @function
- * @public
- * @param {H3Event} event - The H3 event object from Nuxt/H3.
- * @returns {string} The detected client IP address, or '127.0.0.1' if none found.
- * @example
- * getClientIP(event); // "203.0.113.42"
- * @see https://developers.cloudflare.com/fundamentals/reference/http-headers/
- * @see https://vercel.com/docs/edge-network/headers
+ * Priority:
+ * 1. `x-vercel-forwarded-for` (overwritten by Vercel Edge; cannot be spoofed on Vercel)
+ * 2. `x-real-ip` (overwritten by Vercel / Nginx reverse proxies)
+ * 3. `cf-connecting-ip` (Cloudflare proxy deployments)
+ * 4. `x-forwarded-for` (first hop in proxy chain)
+ * 5. Direct socket `remoteAddress`
+ * 6. `""` (empty string -> maps to `"unknown"` rate-limit bucket, never `"127.0.0.1"` loopback bypass)
  */
 export function getClientIP(event: H3Event): string {
 	const headers = event.headers;
 
-	// Cloudflare sets this when traffic passes through CF (preferred)
-	const cf = first(
-		headers.get("cf-connecting-ip") || headers.get("CF-Connecting-IP"),
-	);
-	if (cf) return cf;
+	const vercelIp = first(headers?.get("x-vercel-forwarded-for"));
+	if (vercelIp) return vercelIp;
 
-	// Common reverse proxy header
-	const xr = first(headers.get("x-real-ip") || headers.get("X-Real-IP"));
-	if (xr) return xr;
+	const realIp = first(headers?.get("x-real-ip"));
+	if (realIp) return realIp;
 
-	// Standard proxy chain header (get first IP in chain)
-	const xff = first(
-		headers.get("x-forwarded-for") || headers.get("X-Forwarded-For"),
-	);
+	const cfIp = first(headers?.get("cf-connecting-ip"));
+	if (cfIp) return cfIp;
+
+	const xff = first(headers?.get("x-forwarded-for"));
 	if (xff) return xff;
 
-	return "127.0.0.1";
+	const remote = event.node?.req?.socket?.remoteAddress?.trim();
+	if (remote) return remote;
+
+	return "";
 }
 
 /**
- * Get IP geolocation information from ip-api.com
- *
- * @param {string} ip - IP address to lookup
- * @returns {Promise<any>} Geolocation data
+ * Get IP geolocation information (placeholder for future provider integration).
  */
-export async function getIpLocation(ip: string): Promise<any> {
-	// TODO: Implement geolocation service
-	// For now, return empty object
+export async function getIpLocation(_ip: string): Promise<Record<string, never>> {
 	return {};
 }

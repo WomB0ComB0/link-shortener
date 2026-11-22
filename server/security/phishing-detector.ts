@@ -16,10 +16,12 @@
 
 /**
  * Phishing Detection Module
- * Uses heuristics and pattern matching to detect potential phishing URLs with Effect Schema
+ * Strict heuristics for IDN/punycode homographs, leet-speak brand typosquatting,
+ * credential injection, nested dangerous schemes, high-abuse TLDs, and shortener chaining.
  */
 
 import * as S from "@effect/schema/Schema";
+import { classifyIpAddress } from "./ip-utils";
 
 // Effect Schema for phishing check result
 export class PhishingCheckResult extends S.Class<PhishingCheckResult>(
@@ -33,46 +35,63 @@ export class PhishingCheckResult extends S.Class<PhishingCheckResult>(
 	warnings: S.Array(S.String),
 }) {}
 
-// Common legitimate domains that phishers try to impersonate
-const LEGITIMATE_DOMAINS = [
-	"google",
-	"facebook",
-	"amazon",
-	"apple",
-	"microsoft",
-	"paypal",
-	"netflix",
-	"instagram",
-	"twitter",
-	"linkedin",
-	"github",
-	"dropbox",
-	"yahoo",
-	"outlook",
-	"live",
-	"office",
-	"adobe",
-	"spotify",
-	"ebay",
-	"walmart",
-	"target",
-	"bestbuy",
-	"chase",
-	"bankofamerica",
-	"wellsfargo",
+// High-value brands commonly targeted by credential phishing
+const LEGITIMATE_BRANDS: ReadonlyArray<{
+	readonly brand: string;
+	readonly officialDomains: readonly string[];
+}> = [
+	{ brand: "google", officialDomains: ["google.com", "google.dev", "googleapis.com", "googleusercontent.com"] },
+	{ brand: "facebook", officialDomains: ["facebook.com", "fb.com"] },
+	{ brand: "amazon", officialDomains: ["amazon.com", "amazonaws.com"] },
+	{ brand: "apple", officialDomains: ["apple.com", "icloud.com"] },
+	{ brand: "microsoft", officialDomains: ["microsoft.com", "microsoftonline.com"] },
+	{ brand: "paypal", officialDomains: ["paypal.com", "paypal.me"] },
+	{ brand: "netflix", officialDomains: ["netflix.com"] },
+	{ brand: "instagram", officialDomains: ["instagram.com"] },
+	{ brand: "twitter", officialDomains: ["twitter.com"] },
+	{ brand: "linkedin", officialDomains: ["linkedin.com"] },
+	{ brand: "github", officialDomains: ["github.com", "github.io", "githubusercontent.com"] },
+	{ brand: "dropbox", officialDomains: ["dropbox.com"] },
+	{ brand: "yahoo", officialDomains: ["yahoo.com"] },
+	{ brand: "outlook", officialDomains: ["outlook.com"] },
+	{ brand: "office", officialDomains: ["office.com"] },
+	{ brand: "adobe", officialDomains: ["adobe.com"] },
+	{ brand: "spotify", officialDomains: ["spotify.com"] },
+	{ brand: "ebay", officialDomains: ["ebay.com"] },
+	{ brand: "walmart", officialDomains: ["walmart.com"] },
+	{ brand: "chase", officialDomains: ["chase.com"] },
+	{ brand: "bankofamerica", officialDomains: ["bankofamerica.com"] },
+	{ brand: "wellsfargo", officialDomains: ["wellsfargo.com"] },
+	{ brand: "stripe", officialDomains: ["stripe.com"] },
+	{ brand: "coinbase", officialDomains: ["coinbase.com"] },
+	{ brand: "binance", officialDomains: ["binance.com"] },
+	{ brand: "metamask", officialDomains: ["metamask.io"] },
+	{ brand: "discord", officialDomains: ["discord.com", "discord.gg"] },
+	{ brand: "cloudflare", officialDomains: ["cloudflare.com"] },
+	{ brand: "openai", officialDomains: ["openai.com"] },
+	{ brand: "anthropic", officialDomains: ["anthropic.com"] },
 ];
 
-// Suspicious TLDs commonly used in phishing
-const SUSPICIOUS_TLDS = [
+// High-abuse TLDs frequently observed in phishing campaigns
+const SUSPICIOUS_TLDS = new Set([
 	".tk",
 	".ml",
 	".ga",
 	".cf",
-	".gq", // Free domains
+	".gq",
 	".zip",
 	".mov",
-	".exe", // Confusing extensions
-];
+	".exe",
+	".top",
+	".xyz",
+	".click",
+	".cfd",
+	".loan",
+	".work",
+	".buzz",
+	".surf",
+	".rest",
+]);
 
 // Keywords commonly found in phishing URLs
 const PHISHING_KEYWORDS = [
@@ -95,20 +114,63 @@ const PHISHING_KEYWORDS = [
 	"payment",
 	"billing",
 	"invoice",
+	"password",
+	"credential",
+	"authenticate",
+	"seedphrase",
+	"airdrop",
 ];
+
+// Known public URL shorteners (chaining shorteners hides destination)
+const SHORTENER_DOMAINS = new Set([
+	"bit.ly",
+	"tinyurl.com",
+	"goo.gl",
+	"ow.ly",
+	"t.co",
+	"short.link",
+	"tiny.cc",
+	"cutt.ly",
+	"rebrand.ly",
+	"is.gd",
+	"v.gd",
+	"rb.gy",
+	"s.id",
+	"shorturl.at",
+	"bl.ink",
+	"lnkd.in",
+]);
 
 /**
  * Parse domain from hostname
  */
 function parseDomain(hostname: string): { domain: string; subdomain: string } {
-	const parts = hostname.split(".");
-	const domain = parts.length >= 2 ? parts.slice(-2).join(".") : hostname;
+	const cleaned = hostname.toLowerCase().replace(/\.+$/, "");
+	const parts = cleaned.split(".");
+	const domain = parts.length >= 2 ? parts.slice(-2).join(".") : cleaned;
 	const subdomain = parts.length > 2 ? parts.slice(0, -2).join(".") : "";
 	return { domain, subdomain };
 }
 
 /**
- * Detect potential phishing attempts using multiple heuristics
+ * Normalize common leetspeak & visual lookalikes (e.g., paypa1 -> paypal, g00gle -> google, rn -> m)
+ */
+function toVisualSkeleton(label: string): string {
+	return label
+		.toLowerCase()
+		.replace(/0/g, "o")
+		.replace(/1/g, "l")
+		.replace(/3/g, "e")
+		.replace(/4/g, "a")
+		.replace(/5/g, "s")
+		.replace(/7/g, "t")
+		.replace(/8/g, "b")
+		.replace(/rn/g, "m")
+		.replace(/vv/g, "w");
+}
+
+/**
+ * Detect potential phishing attempts using multi-signal heuristics
  */
 export async function detectPhishing(
 	url: string,
@@ -133,22 +195,47 @@ export async function detectPhishing(
 		});
 	}
 
-	const hostname = parsedUrl.hostname;
+	const hostname = parsedUrl.hostname.toLowerCase();
 	const { domain, subdomain } = parseDomain(hostname);
+	const domainLabel = domain.split(".")[0] || "";
+	const domainSkeleton = toVisualSkeleton(domainLabel);
 
-	// Check 1: Homograph attacks (Unicode lookalikes)
-	if (/[^\x00-\x7F]/.test(hostname)) {
-		suspicionScore += 30;
+	// Check 1: IDN Punycode / Unicode homograph attacks
+	const hasPunycode = hostname
+		.split(".")
+		.some((label) => label.startsWith("xn--"));
+	if (hasPunycode || /[^\x00-\x7F]/.test(hostname)) {
+		suspicionScore += 35;
 		reasons.push(
-			"Domain contains non-ASCII characters (possible homograph attack)",
+			"Domain uses internationalized/punycode characters (possible homograph attack)",
 		);
 	}
 
-	// Check 2: Multiple suspicious keywords
+	// Check 2: Embedded URL credentials (user:pass@host)
+	if (parsedUrl.username || parsedUrl.password) {
+		suspicionScore += 45;
+		reasons.push("Contains embedded URL credentials (credential phishing pattern)");
+	} else if (url.includes("@")) {
+		suspicionScore += 35;
+		reasons.push("Contains @ symbol (possible credential injection)");
+	}
+
+	// Check 3: Nested dangerous URI schemes in query/hash
+	if (/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/i.test(url)) {
+		suspicionScore += 60;
+		reasons.push("Contains embedded executable URI scheme");
+	}
+
+	// Check 4: Multiple phishing keywords
 	const foundKeywords = PHISHING_KEYWORDS.filter((keyword) =>
 		urlLower.includes(keyword),
 	);
-	if (foundKeywords.length >= 2) {
+	if (foundKeywords.length >= 3) {
+		suspicionScore += 35;
+		reasons.push(
+			`Contains multiple phishing keywords: ${foundKeywords.join(", ")}`,
+		);
+	} else if (foundKeywords.length >= 2) {
 		suspicionScore += 25;
 		reasons.push(
 			`Contains multiple phishing keywords: ${foundKeywords.join(", ")}`,
@@ -158,92 +245,96 @@ export async function detectPhishing(
 		warnings.push(`Contains phishing keyword: ${foundKeywords[0]}`);
 	}
 
-	// Check 3: Typosquatting (similar to legitimate domains)
-	for (const legit of LEGITIMATE_DOMAINS) {
-		if (domain.includes(legit) && domain !== `${legit}.com`) {
-			const similarity = calculateSimilarity(domain, `${legit}.com`);
-			if (similarity > 0.7) {
-				suspicionScore += 35;
+	// Check 5: Brand impersonation & typosquatting (exact, substring, and leet/homoglyph skeleton)
+	for (const entry of LEGITIMATE_BRANDS) {
+		const isOfficial = entry.officialDomains.some(
+			(official) => domain === official || hostname.endsWith(`.${official}`),
+		);
+		if (isOfficial) continue;
+
+		// Brand name in subdomain of a third-party domain (e.g., paypal.evil.com)
+		if (subdomain.includes(entry.brand) || toVisualSkeleton(subdomain).includes(entry.brand)) {
+			suspicionScore += 45;
+			reasons.push(`Legitimate brand name in subdomain: ${entry.brand}`);
+			continue;
+		}
+
+		// Brand embedded in an unofficial domain (e.g., paypal-verify.com)
+		if (domainLabel.includes(entry.brand) || domainSkeleton.includes(entry.brand)) {
+			suspicionScore += 40;
+			reasons.push(`Domain impersonates legitimate brand: ${entry.brand}`);
+			continue;
+		}
+
+		// Fuzzy typosquatting via Levenshtein distance on visual skeleton (e.g., g00gle.com, paypa1.com, githab.com)
+		if (
+			entry.brand.length >= 5 &&
+			Math.abs(domainSkeleton.length - entry.brand.length) <= 2
+		) {
+			const distance = levenshteinDistance(domainSkeleton, entry.brand);
+			const similarity = calculateSimilarity(domainSkeleton, entry.brand);
+			if (distance <= 1 || similarity >= 0.82) {
+				suspicionScore += 40;
 				reasons.push(
-					`Domain closely resembles legitimate brand: ${legit} (similarity: ${(similarity * 100).toFixed(0)}%)`,
+					`Domain closely resembles legitimate brand: ${entry.brand} (similarity: ${(similarity * 100).toFixed(0)}%)`,
 				);
 			}
 		}
-
-		// Check if legitimate brand is in subdomain (e.g., paypal.malicious.com)
-		if (subdomain.includes(legit)) {
-			suspicionScore += 40;
-			reasons.push(`Legitimate brand name in subdomain: ${legit}`);
-		}
 	}
 
-	// Check 4: Suspicious TLD
+	// Check 6: High-abuse / deceptive TLD
 	const tld = domain.split(".").pop() || "";
-	if (SUSPICIOUS_TLDS.some((suspicious) => `.${tld}` === suspicious)) {
+	if (SUSPICIOUS_TLDS.has(`.${tld}`)) {
 		suspicionScore += 20;
 		reasons.push(`Uses suspicious TLD: .${tld}`);
 	}
 
-	// Check 5: Excessive subdomains
+	// Check 7: Excessive subdomains
 	const subdomainParts = subdomain.split(".").filter(Boolean);
 	if (subdomainParts.length > 3) {
-		suspicionScore += 15;
-		warnings.push(`Excessive subdomains (${subdomainParts.length} levels)`);
-	}
-
-	// Check 6: IP address instead of domain
-	const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-	if (ipRegex.test(hostname)) {
-		suspicionScore += 30;
-		reasons.push("Uses IP address instead of domain name");
-	}
-
-	// Check 7: @ symbol in URL (credential phishing)
-	if (url.includes("@")) {
-		suspicionScore += 35;
-		reasons.push("Contains @ symbol (possible credential injection)");
-	}
-
-	// Check 8: Excessive hyphens (e.g., pay-pal-secure-login.com)
-	const hyphenCount = domain.split("-").length - 1;
-	if (hyphenCount > 2) {
 		suspicionScore += 20;
+		reasons.push(`Excessive subdomains (${subdomainParts.length} levels)`);
+	}
+
+	// Check 8: Raw IP address (IPv4 or IPv6) instead of domain
+	const ipInfo = classifyIpAddress(hostname);
+	if (ipInfo.isIp) {
+		suspicionScore += 40;
+		reasons.push("Uses raw IP address instead of domain name");
+	}
+
+	// Check 9: Excessive hyphens in registered domain (e.g., pay-pal-secure-login.com)
+	const hyphenCount = domainLabel.split("-").length - 1;
+	if (hyphenCount >= 3) {
+		suspicionScore += 25;
 		reasons.push(`Excessive hyphens in domain (${hyphenCount})`);
 	}
 
-	// Check 9: Numbers in suspicious positions
-	if (/\d+/.test(domain) && foundKeywords.length > 0) {
+	// Check 10: Numbers mixed with phishing keywords in domain
+	if (/\d+/.test(domainLabel) && foundKeywords.length > 0) {
 		suspicionScore += 15;
 		warnings.push("Domain contains numbers along with sensitive keywords");
 	}
 
-	// Check 10: Very long domain name
+	// Check 11: Unusually long registered domain
 	if (domain.length > 30) {
 		suspicionScore += 10;
 		warnings.push(`Unusually long domain name (${domain.length} characters)`);
 	}
 
-	// Check 11: Shortened URL redirect patterns
-	const shortenerPatterns = [
-		"bit.ly",
-		"tinyurl",
-		"goo.gl",
-		"ow.ly",
-		"t.co",
-		"short.link",
-		"tiny.cc",
-		"cutt.ly",
-		"rebrand.ly",
-	];
-	if (shortenerPatterns.some((pattern) => hostname.includes(pattern))) {
-		suspicionScore += 5;
-		warnings.push("URL uses a URL shortener (destination unknown)");
+	// Check 12: Chained URL shortener (obfuscates true destination)
+	if (
+		SHORTENER_DOMAINS.has(domain) ||
+		SHORTENER_DOMAINS.has(hostname)
+	) {
+		suspicionScore += 20;
+		warnings.push("URL uses another URL shortener (destination obfuscated)");
 	}
 
 	// Cap suspicion score at 100
 	suspicionScore = Math.min(suspicionScore, 100);
 
-	// Determine if it's phishing based on score
+	// Strict threshold: 50+ flags phishing
 	const isPhishing = suspicionScore >= 50;
 
 	return new PhishingCheckResult({
@@ -282,22 +373,22 @@ function levenshteinDistance(str1: string, str2: string): number {
 	}
 
 	for (let j = 0; j <= str1.length; j++) {
-		matrix[0][j] = j;
+		matrix[0]![j] = j;
 	}
 
 	for (let i = 1; i <= str2.length; i++) {
 		for (let j = 1; j <= str1.length; j++) {
 			if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-				matrix[i][j] = matrix[i - 1][j - 1];
+				matrix[i]![j] = matrix[i - 1]![j - 1]!;
 			} else {
-				matrix[i][j] = Math.min(
-					matrix[i - 1][j - 1] + 1, // substitution
-					matrix[i][j - 1] + 1, // insertion
-					matrix[i - 1][j] + 1, // deletion
+				matrix[i]![j] = Math.min(
+					matrix[i - 1]![j - 1]! + 1,
+					matrix[i]![j - 1]! + 1,
+					matrix[i - 1]![j]! + 1,
 				);
 			}
 		}
 	}
 
-	return matrix[str2.length][str1.length];
+	return matrix[str2.length]![str1.length]!;
 }

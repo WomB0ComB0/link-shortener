@@ -138,12 +138,14 @@ export const CREATE_SHORT_LINK = `
     $shortUrl: String!
     $customAlias: String
     $userId: uuid
+    $expiresAt: timestamptz
   ) {
     insert_short_links_one(object: {
       original_url: $originalUrl
       short_url: $shortUrl
       custom_alias: $customAlias
       user_id: $userId
+      expires_at: $expiresAt
       is_active: true
     }) {
       id
@@ -151,6 +153,7 @@ export const CREATE_SHORT_LINK = `
       original_url
       custom_alias
       is_active
+      expires_at
       created_at
     }
   }

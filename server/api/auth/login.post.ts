@@ -24,8 +24,16 @@ import * as S from "@effect/schema/Schema";
 import { createError, defineEventHandler, readBody } from "h3";
 import { GET_USER_BY_EMAIL_WITH_PASSWORD } from "../../../lib/graphql/operations";
 import { AuthResponse, LoginRequest } from "../../../server/schemas/index";
-import { generateSessionToken, verifyPassword } from "../../utils/auth";
+import {
+	generateSessionToken,
+	setSessionCookie,
+	verifyPassword,
+} from "../../utils/auth";
 import { executeQuery } from "../../utils/graphql";
+
+// Constant dummy scrypt hash used when an email does not exist so response timing matches
+const DUMMY_PASSWORD_HASH =
+	"scrypt$000102030405060708090a0b0c0d0e0f$" + "0".repeat(128);
 
 export default defineEventHandler(async (event) => {
 	const body = await readBody(event);
@@ -61,8 +69,9 @@ export default defineEventHandler(async (event) => {
 
 		const users = data?.users || [];
 
-		// Check if user exists
+		// Check if user exists (run dummy scrypt verification to prevent timing enumeration)
 		if (users.length === 0) {
+			verifyPassword(password, DUMMY_PASSWORD_HASH);
 			throw createError({
 				statusCode: 401,
 				statusMessage: "Invalid email or password",
@@ -81,8 +90,9 @@ export default defineEventHandler(async (event) => {
 			});
 		}
 
-		// Generate session token (type-safe)
+		// Generate session token and set HttpOnly cookie
 		const token = generateSessionToken(user.id);
+		setSessionCookie(event, token);
 
 		// Return type-safe response
 		const response = new AuthResponse({

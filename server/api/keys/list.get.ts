@@ -24,14 +24,14 @@ import { FetchHttpClient } from "@effect/platform";
 import { Effect, Schema } from "effect";
 import { post } from "../../../lib/fetcher";
 
-// Response schema for API keys list
+// Response schema for API keys list (never selects the hashed `key` column)
 const ApiKeysListResponseSchema = Schema.Struct({
 	data: Schema.Struct({
 		api_keys: Schema.Array(
 			Schema.Struct({
 				id: Schema.String,
 				name: Schema.NullOr(Schema.String),
-				key: Schema.String,
+				key_prefix: Schema.NullOr(Schema.String),
 				created_at: Schema.String,
 				is_active: Schema.Boolean,
 				expires_at: Schema.NullOr(Schema.String),
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
 			});
 		}
 
-		// Fetch user's API keys from database
+		// Fetch user's API keys metadata (hashes are never returned to clients)
 		const query = `
       query GetApiKeys($userId: uuid!) {
         api_keys(
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
         ) {
           id
           name
-          key
+          key_prefix
           created_at
           is_active
           expires_at
@@ -99,10 +99,14 @@ export default defineEventHandler(async (event) => {
 			Effect.provide(effect, FetchHttpClient.layer),
 		);
 
-		// Mask API keys (show only last 8 characters)
-		const apiKeys = response.data.api_keys.map((key) => ({
-			...key,
-			key: `...${key.key.slice(-8)}`,
+		const apiKeys = response.data.api_keys.map((row) => ({
+			id: row.id,
+			name: row.name,
+			key: row.key_prefix || "sk_••••••••",
+			created_at: row.created_at,
+			is_active: row.is_active,
+			expires_at: row.expires_at,
+			last_used_at: row.last_used_at,
 		}));
 
 		return {
@@ -114,9 +118,10 @@ export default defineEventHandler(async (event) => {
 			throw error;
 		}
 
+		console.error("Failed to fetch API keys:", error);
 		throw createError({
 			statusCode: 500,
-			message: error.message || "Failed to fetch API keys",
+			message: "Failed to fetch API keys",
 		});
 	}
 });

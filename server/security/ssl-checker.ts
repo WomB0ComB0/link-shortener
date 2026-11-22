@@ -16,11 +16,14 @@
 
 /**
  * SSL/TLS Certificate Validator Module
- * Checks SSL certificate validity and security with Effect Schema
+ * Strict TLS handshake, certificate chain, hostname, protocol, cipher, and SSRF-safe lookup checks.
  */
 
+import dns from "node:dns";
 import https from "node:https";
+import type { TLSSocket } from "node:tls";
 import * as S from "@effect/schema/Schema";
+import { classifyIpAddress } from "./ip-utils";
 
 // Effect Schema for SSL check result
 export class SslCheckResult extends S.Class<SslCheckResult>("SslCheckResult")({
@@ -39,10 +42,72 @@ export class SslCheckResult extends S.Class<SslCheckResult>("SslCheckResult")({
 	checkTime: S.Number,
 }) {}
 
+const CERT_ERROR_MESSAGES: Record<string, string> = {
+	CERT_HAS_EXPIRED: "SSL certificate has expired",
+	CERT_NOT_YET_VALID: "SSL certificate is not yet valid",
+	DEPTH_ZERO_SELF_SIGNED_CERT: "SSL certificate is self-signed",
+	SELF_SIGNED_CERT_IN_CHAIN: "SSL certificate chain contains a self-signed certificate",
+	UNABLE_TO_VERIFY_LEAF_SIGNATURE: "Unable to verify SSL leaf certificate signature",
+	UNABLE_TO_GET_ISSUER_CERT_LOCALLY: "SSL certificate issuer is not trusted",
+	ERR_TLS_CERT_ALTNAME_INVALID: "SSL certificate hostname mismatch",
+	HOSTNAME_MISMATCH: "SSL certificate hostname mismatch",
+};
+
+const OUTDATED_TLS_PROTOCOLS = new Set(["SSLv2", "SSLv3", "TLSv1", "TLSv1.0", "TLSv1.1"]);
+const WEAK_CIPHER_PATTERN = /(?:RC4|DES|3DES|MD5|NULL|EXPORT|ANON)/i;
+
+/**
+ * SSRF-safe DNS lookup callback for outbound TLS sockets.
+ * Refuses to connect to any private, loopback, link-local, or reserved IP.
+ */
+function safeDnsLookup(
+	hostname: string,
+	options: dns.LookupOptions,
+	callback: (
+		err: NodeJS.ErrnoException | null,
+		address: string | dns.LookupAddress[],
+		family?: number,
+	) => void,
+): void {
+	dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+		if (err) {
+			callback(err, "");
+			return;
+		}
+		if (!addresses || addresses.length === 0) {
+			callback(new Error("DNS lookup returned no addresses"), "");
+			return;
+		}
+
+		for (const entry of addresses) {
+			const classification = classifyIpAddress(entry.address);
+			if (classification.isRestricted) {
+				callback(
+					new Error(
+						`Blocked TLS connection to ${classification.reason} IP address: ${entry.address}`,
+					),
+					"",
+				);
+				return;
+			}
+		}
+
+		if (options.all) {
+			callback(null, addresses);
+		} else {
+			const first = addresses[0]!;
+			callback(null, first.address, first.family);
+		}
+	});
+}
+
 /**
  * Comprehensive SSL/TLS certificate validation
  */
-export async function checkSsl(url: string): Promise<SslCheckResult> {
+export async function checkSsl(
+	url: string,
+	timeoutMs = 8000,
+): Promise<SslCheckResult> {
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const startTime = Date.now();
@@ -50,7 +115,7 @@ export async function checkSsl(url: string): Promise<SslCheckResult> {
 	// Only check HTTPS URLs
 	if (!url.startsWith("https://")) {
 		return new SslCheckResult({
-			isValid: true, // HTTP is technically valid, just not secure
+			isValid: true, // HTTP is warned and scored separately; HTTPS enforces TLS
 			url,
 			hasValidCertificate: false,
 			errors: [],
@@ -61,41 +126,51 @@ export async function checkSsl(url: string): Promise<SslCheckResult> {
 
 	try {
 		const urlObj = new URL(url);
-		const options = {
+		const port = urlObj.port ? Number(urlObj.port) : 443;
+
+		const options: https.RequestOptions = {
 			hostname: urlObj.hostname,
-			port: 443,
+			port,
 			path: "/",
 			method: "HEAD",
 			rejectUnauthorized: true,
-			timeout: 10000,
+			servername: urlObj.hostname,
+			timeout: timeoutMs,
+			lookup: safeDnsLookup as https.RequestOptions["lookup"],
 		};
 
 		const certificateInfo = await new Promise<{
 			valid: boolean;
+			certError?: string;
 			cert?: any;
-			protocol?: string;
-			cipher?: any;
+			authorized?: boolean;
+			protocol?: string | null;
+			cipher?: { name?: string } | null;
 		}>((resolve, reject) => {
 			const req = https.request(options, (res) => {
-				const cert = (res.socket as any).getPeerCertificate();
-				const protocol = (res.socket as any).getProtocol();
-				const cipher = (res.socket as any).getCipher();
+				const socket = res.socket as TLSSocket;
+				const cert = socket.getPeerCertificate();
+				const protocol = socket.getProtocol();
+				const cipher = socket.getCipher();
+				const authorized = socket.authorized;
+
+				// Consume & close immediately to avoid leaking sockets
+				res.resume();
+				req.destroy();
 
 				resolve({
-					valid: true,
+					valid: Boolean(authorized),
 					cert,
+					authorized,
 					protocol,
 					cipher,
 				});
 			});
 
 			req.on("error", (error: any) => {
-				if (error.code === "CERT_HAS_EXPIRED") {
-					resolve({ valid: false });
-				} else if (error.code === "DEPTH_ZERO_SELF_SIGNED_CERT") {
-					resolve({ valid: false });
-				} else if (error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE") {
-					resolve({ valid: false });
+				const knownMessage = error?.code ? CERT_ERROR_MESSAGES[error.code] : undefined;
+				if (knownMessage) {
+					resolve({ valid: false, certError: knownMessage });
 				} else {
 					reject(error);
 				}
@@ -110,7 +185,9 @@ export async function checkSsl(url: string): Promise<SslCheckResult> {
 		});
 
 		if (!certificateInfo.valid) {
-			errors.push("SSL certificate is invalid or has expired");
+			errors.push(
+				certificateInfo.certError || "SSL certificate is invalid or untrusted",
+			);
 			return new SslCheckResult({
 				isValid: false,
 				url,
@@ -122,6 +199,18 @@ export async function checkSsl(url: string): Promise<SslCheckResult> {
 		}
 
 		const cert = certificateInfo.cert;
+		if (!cert || !cert.valid_from || !cert.valid_to) {
+			errors.push("Server did not present a valid peer SSL certificate");
+			return new SslCheckResult({
+				isValid: false,
+				url,
+				hasValidCertificate: false,
+				errors,
+				warnings,
+				checkTime: Date.now() - startTime,
+			});
+		}
+
 		const validFrom = new Date(cert.valid_from);
 		const validTo = new Date(cert.valid_to);
 		const now = new Date();
@@ -129,52 +218,53 @@ export async function checkSsl(url: string): Promise<SslCheckResult> {
 			(validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
 		);
 
-		// Certificate expiration warnings
+		// Validity window checks
+		if (validFrom.getTime() > now.getTime()) {
+			errors.push("SSL certificate is not yet valid");
+		}
 		if (daysUntilExpiration < 0) {
 			errors.push("SSL certificate has expired");
+		} else if (daysUntilExpiration < 14) {
+			warnings.push(`SSL certificate expires soon (${daysUntilExpiration} days)`);
 		} else if (daysUntilExpiration < 30) {
 			warnings.push(`SSL certificate expires in ${daysUntilExpiration} days`);
 		}
 
-		// Check for self-signed certificates
+		// Reject self-signed leaf certificates
 		if (cert.issuer && cert.subject) {
 			const issuerCN = cert.issuer.CN;
 			const subjectCN = cert.subject.CN;
-			if (issuerCN === subjectCN) {
-				warnings.push("SSL certificate is self-signed");
+			if (issuerCN && subjectCN && issuerCN === subjectCN) {
+				errors.push("SSL certificate is self-signed");
 			}
 		}
 
-		// Protocol warnings
+		// Reject deprecated TLS versions (< TLS 1.2)
 		if (certificateInfo.protocol) {
 			const protocol = certificateInfo.protocol;
-			if (protocol.includes("TLSv1.0") || protocol.includes("TLSv1.1")) {
-				warnings.push(`Outdated TLS protocol: ${protocol}`);
+			if (OUTDATED_TLS_PROTOCOLS.has(protocol)) {
+				errors.push(`Outdated insecure TLS protocol: ${protocol}`);
 			}
 		}
 
-		// Cipher warnings
-		if (certificateInfo.cipher) {
+		// Reject weak cipher suites
+		if (certificateInfo.cipher?.name) {
 			const cipher = certificateInfo.cipher.name;
-			if (
-				cipher.includes("RC4") ||
-				cipher.includes("DES") ||
-				cipher.includes("MD5")
-			) {
-				warnings.push(`Weak cipher suite: ${cipher}`);
+			if (WEAK_CIPHER_PATTERN.test(cipher)) {
+				errors.push(`Weak cipher suite negotiated: ${cipher}`);
 			}
 		}
 
 		return new SslCheckResult({
 			isValid: errors.length === 0,
 			url,
-			hasValidCertificate: true,
+			hasValidCertificate: errors.length === 0,
 			certificateIssuer: cert.issuer?.CN,
 			certificateSubject: cert.subject?.CN,
 			validFrom,
 			validTo,
 			daysUntilExpiration,
-			protocol: certificateInfo.protocol,
+			protocol: certificateInfo.protocol ?? undefined,
 			cipher: certificateInfo.cipher?.name,
 			errors,
 			warnings,

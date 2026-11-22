@@ -33,7 +33,11 @@ import {
 	PasswordSchema,
 	RegisterRequest,
 } from "../../../server/schemas/index";
-import { generateSessionToken, hashPassword } from "../../../server/utils/auth";
+import {
+	generateSessionToken,
+	hashPassword,
+	setSessionCookie,
+} from "../../../server/utils/auth";
 import { executeMutation, executeQuery } from "../../../server/utils/graphql";
 
 export default defineEventHandler(async (event) => {
@@ -96,8 +100,9 @@ export default defineEventHandler(async (event) => {
 
 	const user = result.insert_users_one;
 
-	// Generate session token (type-safe)
+	// Generate session token and set HttpOnly cookie
 	const token = generateSessionToken(user.id);
+	setSessionCookie(event, token);
 
 	// Return type-safe response
 	const response = new AuthResponse({

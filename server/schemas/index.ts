@@ -127,14 +127,14 @@ export const PasswordSchema = pipe(
 );
 
 /**
- * Password Hash Schema - SHA-256 hex string
+ * Password Hash Schema - Salted scrypt format (preferred) or legacy SHA-256 hex
  */
 export const PasswordHashSchema = pipe(
 	S.String,
-	S.pattern(/^[a-f0-9]{64}$/),
+	S.pattern(/^(?:scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}|[a-f0-9]{64})$/),
 	S.annotations({
-		message: () => "Must be a valid SHA-256 hash",
-		description: "A SHA-256 password hash in hexadecimal format",
+		message: () => "Must be a valid password hash",
+		description: "A salted scrypt hash or legacy SHA-256 hex hash",
 	}),
 );
 

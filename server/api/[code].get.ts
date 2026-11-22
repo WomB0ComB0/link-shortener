@@ -20,12 +20,14 @@ import {
 	getHeader,
 	getRouterParam,
 	sendRedirect,
+	setResponseHeader,
 } from "h3";
 import { getClientIP, getIpLocation } from "../../lib/get-ip";
 import {
 	CREATE_CLICK,
 	GET_SHORT_LINK_BY_CODE,
 } from "../../lib/graphql/operations";
+import { validateUrl } from "../../server/security/url-validator";
 import { executeMutation, executeQuery } from "../../server/utils/graphql";
 
 export default defineEventHandler(async (event) => {
@@ -71,6 +73,16 @@ export default defineEventHandler(async (event) => {
 		});
 	}
 
+	// Defense-in-depth: re-validate destination URL before issuing redirect
+	const urlCheck = await validateUrl(link.original_url);
+	if (!urlCheck.isValid) {
+		throw createError({
+			statusCode: 403,
+			statusMessage: "Forbidden",
+			message: "Redirect blocked: destination URL failed security validation",
+		});
+	}
+
 	// Record click analytics
 	const userAgent = getHeader(event, "user-agent");
 	const referrer = getHeader(event, "referer") || getHeader(event, "referrer");
@@ -89,6 +101,10 @@ export default defineEventHandler(async (event) => {
 		// Log error but don't fail the redirect
 		console.error("Failed to record click:", error);
 	});
+
+	// Harden redirect response headers
+	setResponseHeader(event, "Referrer-Policy", "no-referrer");
+	setResponseHeader(event, "X-Robots-Tag", "noindex, nofollow");
 
 	// Redirect to original URL
 	return sendRedirect(event, link.original_url, 302);
