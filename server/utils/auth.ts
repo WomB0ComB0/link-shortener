@@ -20,7 +20,7 @@
  */
 
 import * as S from "@effect/schema/Schema";
-import { createHash } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { getHeader } from "h3";
 import {
 	EmailSchema,
@@ -66,8 +66,13 @@ export function generateSessionToken(userId: string): string {
 		exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
 	});
 
-	// Encode payload
-	const token = Buffer.from(JSON.stringify(payload)).toString("base64");
+	const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
+		"base64url",
+	);
+	const signature = createHmac("sha256", getSessionTokenSecret())
+		.update(encodedPayload)
+		.digest("base64url");
+	const token = `${encodedPayload}.${signature}`;
 
 	// Validate token format
 	return S.decodeSync(JwtTokenSchema)(token);
@@ -82,8 +87,28 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
 		// Validate token format first
 		S.decodeSync(JwtTokenSchema)(token);
 
+		const [encodedPayload, encodedSignature] = token.split(".");
+		if (!encodedPayload || !encodedSignature) {
+			return null;
+		}
+
+		const expectedSignature = createHmac("sha256", getSessionTokenSecret())
+			.update(encodedPayload)
+			.digest("base64url");
+		const providedSignature = Buffer.from(encodedSignature, "base64url");
+		const expectedSignatureBuffer = Buffer.from(expectedSignature, "base64url");
+
+		if (
+			providedSignature.length !== expectedSignatureBuffer.length ||
+			!timingSafeEqual(providedSignature, expectedSignatureBuffer)
+		) {
+			return null;
+		}
+
 		// Decode and parse
-		const decoded = JSON.parse(Buffer.from(token, "base64").toString());
+		const decoded = JSON.parse(
+			Buffer.from(encodedPayload, "base64url").toString(),
+		);
 
 		// Validate payload structure
 		const payload = S.decodeSync(SessionTokenPayload)(decoded);
@@ -97,6 +122,14 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
 	} catch {
 		return null;
 	}
+}
+
+function getSessionTokenSecret(): string {
+	const secret = useRuntimeConfig().JWT_SECRET || process.env.JWT_SECRET;
+	if (!secret) {
+		throw new Error("JWT_SECRET must be configured");
+	}
+	return secret;
 }
 
 /**

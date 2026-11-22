@@ -21,6 +21,7 @@ import {
 	ShortLinkWithAnalytics,
 	UUIDSchema,
 } from "../../../server/schemas/index";
+import { getUserIdFromHeaders } from "../../../server/utils/auth";
 import { executeQuery } from "../../../server/utils/graphql";
 import { validateSync } from "../../../server/utils/validation";
 
@@ -33,11 +34,13 @@ export default defineEventHandler(async (event) => {
 		query.shortLinkId,
 		"Short link ID must be a valid UUID",
 	);
+	const authenticatedUserId = getUserIdFromHeaders(event);
 
 	// Query Hasura for the short link and its analytics
 	const { data, error } = await executeQuery<{
 		short_links: Array<{
 			id: string;
+			user_id: string | null;
 			short_url: string;
 			original_url: string;
 			custom_alias: string | null;
@@ -70,6 +73,13 @@ export default defineEventHandler(async (event) => {
 	}
 
 	const link = data.short_links[0];
+	if (authenticatedUserId && link.user_id !== authenticatedUserId) {
+		throw createError({
+			statusCode: 403,
+			statusMessage: "Forbidden",
+			message: "You do not have access to this link's analytics",
+		});
+	}
 
 	// Map clicks to the schema format
 	const clicksData = link.clicks.map((click) => ({

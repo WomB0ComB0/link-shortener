@@ -37,6 +37,7 @@ export default defineNuxtConfig({
 
 	runtimeConfig: {
 		MASTER_PASSWORD_HASH: process.env.MASTER_PASSWORD_HASH,
+		JWT_SECRET: process.env.JWT_SECRET,
 		hasuraGraphqlEndpoint: process.env.HASURA_GRAPHQL_ENDPOINT,
 		hasuraGraphqlAdminSecret: process.env.HASURA_GRAPHQL_ADMIN_SECRET,
 		public: {

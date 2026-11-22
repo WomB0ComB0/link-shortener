@@ -207,6 +207,7 @@ export const GET_LINK_ANALYTICS = `
   query GetLinkAnalytics($shortLinkId: uuid!) {
     short_links(where: {id: {_eq: $shortLinkId}}) {
       id
+      user_id
       short_url
       original_url
       custom_alias

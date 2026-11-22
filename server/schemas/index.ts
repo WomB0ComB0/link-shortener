@@ -139,13 +139,13 @@ export const PasswordHashSchema = pipe(
 );
 
 /**
- * JWT Token Schema - Base64 encoded token
+ * Signed session token schema
  */
 export const JwtTokenSchema = pipe(
 	S.String,
 	S.minLength(20),
 	S.annotations({
-		description: "A JWT-like session token",
+		description: "A signed session token",
 	}),
 );
 
