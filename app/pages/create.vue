@@ -755,8 +755,10 @@ function copyResult() {
 	copyToClipboard(shortLinkUrl.value);
 }
 
-useSeoMeta({
+usePageSeo({
 	title: "Create Short Link",
-	description: "Create a fast, secure short link instantly.",
+	description:
+		"Shorten and security-verify a destination URL with 6-stage phishing, malware, SSL, and DNS checks.",
+	path: "/create",
 });
 </script>

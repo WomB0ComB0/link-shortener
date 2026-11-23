@@ -55,6 +55,8 @@ export const RESERVED_ALIASES: ReadonlySet<string> = new Set([
 	"llms",
 	"manifest",
 	"sw",
+	"opengraph-image",
+	"twitter-image",
 ]);
 
 // Rate limiting configuration

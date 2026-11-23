@@ -68,8 +68,10 @@ async function handleLogout() {
 	router.push("/");
 }
 
-useSeoMeta({
+usePageSeo({
 	title: "API Keys",
-	description: "Manage your API keys for programmatic access",
+	description:
+		"Mint and revoke hashed sk_ API keys for programmatic link shortening on links.mikeodnis.dev.",
+	path: "/keys",
 });
 </script>

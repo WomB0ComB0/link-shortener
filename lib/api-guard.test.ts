@@ -71,6 +71,8 @@ describe("API guard & Redis guard client", () => {
 		expect(classifyRequest("GET", "/dashboard")).toBeNull();
 		expect(classifyRequest("OPTIONS", "/api/links/create")).toBeNull();
 		expect(classifyRequest("GET", "/api/health")).toBeNull();
+		expect(classifyRequest("GET", "/api/og")).toBeNull();
+		expect(classifyRequest("GET", "/api/og?title=Dashboard")).toBeNull();
 		expect(classifyRequest("POST", "/api/admin/ban")).toEqual({
 			checkBans: false,
 			limiter: "auth",

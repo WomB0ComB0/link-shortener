@@ -312,8 +312,10 @@ async function handleSubmit() {
 	}
 }
 
-useSeoMeta({
-	title: "Authentication",
-	description: "Login or create an account to manage your short links.",
+usePageSeo({
+	title: "Sign In",
+	description:
+		"Sign in or create an account to manage short links, custom aliases, and API keys.",
+	path: "/auth",
 });
 </script>

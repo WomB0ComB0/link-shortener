@@ -176,8 +176,10 @@ async function handleLogout() {
 	router.push("/");
 }
 
-useSeoMeta({
+usePageSeo({
 	title: "Dashboard",
-	description: "Manage your short links and view analytics.",
+	description:
+		"Manage your short links, monitor destination health, and inspect click analytics.",
+	path: "/dashboard",
 });
 </script>

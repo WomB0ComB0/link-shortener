@@ -112,9 +112,10 @@ onUnmounted(() => {
 	}
 });
 
-useSeoMeta({
-	title: "Offline - Links",
-	description: "You are currently offline",
+usePageSeo({
+	title: "Offline",
+	description: "You are currently offline.",
+	path: "/offline",
 	robots: "noindex,nofollow",
 });
 </script>

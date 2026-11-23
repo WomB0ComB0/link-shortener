@@ -130,13 +130,14 @@ const API_RESERVED_FIRST_SEGMENTS = new Set([
 	"health",
 	"keys",
 	"links",
+	"og",
 	"security",
 ]);
 
 /**
  * Classify an incoming request into its guard policy, or `null` if unguarded.
  *
- * - Non-API routes, CORS preflights (`OPTIONS`), and `/api/health` are unguarded.
+ * - Non-API routes, CORS preflights (`OPTIONS`), `/api/health`, and `/api/og` are unguarded.
  * - `/api/admin/*` skips ban/slow lists (prevents operator lockout) and uses `auth`.
  * - `/api/auth/*` uses `auth` (5 req / 10s).
  * - `/api/links/create` uses `create` (10 req / 60s).
@@ -146,11 +147,13 @@ const API_RESERVED_FIRST_SEGMENTS = new Set([
  */
 export function classifyRequest(
 	method: string,
-	pathname: string,
+	rawPathname: string,
 ): GuardPolicy | null {
+	const pathname = rawPathname.split("?")[0] || rawPathname;
 	if (!pathname.startsWith("/api/")) return null;
 	if (method.toUpperCase() === "OPTIONS") return null;
 	if (isUnder(pathname, "/api/health")) return null;
+	if (isUnder(pathname, "/api/og")) return null;
 	if (isUnder(pathname, "/api/admin")) {
 		return { checkBans: false, limiter: "auth" };
 	}

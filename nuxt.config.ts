@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
-import { pwa } from "./app/config/pwa";
+import { pwa, THEME_COLOR } from "./app/config/pwa";
 import { app } from "./app/constants/index";
+
+const DEFAULT_OG_IMAGE = `${app.url}/opengraph-image`;
+const DEFAULT_TWITTER_IMAGE = `${app.url}/twitter-image`;
+const DEFAULT_OG_ALT = `${app.name} — ${app.description}`;
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -71,9 +75,10 @@ export default defineNuxtConfig({
 			viewport: "width=device-width,initial-scale=1,viewport-fit=cover",
 			link: [
 				{ rel: "icon", href: "/favicon.ico", sizes: "any" },
-				{ rel: "icon", type: "image/svg+xml", href: "/assets/svgs/logo.svg" },
-				{ rel: "apple-touch-icon", href: "/pwa/ios/180.png" },
-				{ rel: "mask-icon", href: "/assets/svgs/logo.svg", color: "#0c0c14" },
+				{ rel: "icon", type: "image/svg+xml", href: "/pwa/icon.svg" },
+				{ rel: "apple-touch-icon", href: "/pwa/apple-touch-icon.png" },
+				{ rel: "mask-icon", href: "/pwa/icon.svg", color: THEME_COLOR },
+				{ rel: "manifest", href: "/manifest.webmanifest" },
 			],
 			script: [
 				{
@@ -88,6 +93,18 @@ export default defineNuxtConfig({
 				{ property: "og:site_name", content: app.name },
 				{ property: "og:type", content: "website" },
 				{ property: "og:url", content: app.url },
+				{ property: "og:title", content: app.name },
+				{ property: "og:description", content: app.description },
+				{ property: "og:image", content: DEFAULT_OG_IMAGE },
+				{ property: "og:image:width", content: "1200" },
+				{ property: "og:image:height", content: "630" },
+				{ property: "og:image:type", content: "image/png" },
+				{ property: "og:image:alt", content: DEFAULT_OG_ALT },
+				{ name: "twitter:card", content: "summary_large_image" },
+				{ name: "twitter:title", content: app.name },
+				{ name: "twitter:description", content: app.description },
+				{ name: "twitter:image", content: DEFAULT_TWITTER_IMAGE },
+				{ name: "twitter:image:alt", content: DEFAULT_OG_ALT },
 				{ name: "twitter:creator", content: "@mike_odnis" },
 				{
 					name: "apple-mobile-web-app-status-bar-style",
@@ -99,7 +116,7 @@ export default defineNuxtConfig({
 				},
 				{
 					name: "apple-mobile-web-app-title",
-					content: app.name,
+					content: app.shortName,
 				},
 				{
 					name: "mobile-web-app-capable",
@@ -107,11 +124,11 @@ export default defineNuxtConfig({
 				},
 				{
 					name: "theme-color",
-					content: "#0c0c14",
+					content: THEME_COLOR,
 				},
 				{
 					name: "msapplication-TileColor",
-					content: "#0c0c14",
+					content: THEME_COLOR,
 				},
 				{
 					name: "msapplication-config",
@@ -143,6 +160,13 @@ export default defineNuxtConfig({
 				target: "esnext",
 			},
 		},
+		publicAssets: [
+			{
+				dir: "server/og/fonts",
+				baseURL: "/assets/fonts/og",
+				maxAge: 60 * 60 * 24 * 365,
+			},
+		],
 		prerender: {
 			crawlLinks: false,
 			routes: [],
@@ -165,5 +189,5 @@ export default defineNuxtConfig({
 		},
 	},
 
-	...(pwa as any),
+	pwa,
 });

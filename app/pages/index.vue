@@ -184,8 +184,11 @@ function handleLogout() {
 	logout();
 }
 
-useSeoMeta({
-	title: "Links - URL Shortener",
-	description: "Create fast, secure short links with powerful analytics.",
+usePageSeo({
+	title: "Links — Mike Odnis",
+	description:
+		"Fast, security-verified short links with click analytics on links.mikeodnis.dev.",
+	path: "/",
+	useSiteCard: true,
 });
 </script>
