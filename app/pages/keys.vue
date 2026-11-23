@@ -73,5 +73,6 @@ usePageSeo({
 	description:
 		"Mint and revoke hashed sk_ API keys for programmatic link shortening on links.mikeodnis.dev.",
 	path: "/keys",
+	noIndex: true,
 });
 </script>

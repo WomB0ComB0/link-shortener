@@ -2,48 +2,30 @@
 
 Developer: Mike Odnis
 Site: https://mikeodnis.dev
-Location: Earth
+GitHub: https://github.com/WomB0ComB0
+Contact: mike@mikeodnis.dev
 
 /* THANKS */
 
 Nuxt Team - https://nuxt.com
-Vite PWA - https://vite-pwa-org.netlify.app
+Nitro - https://nitro.build
 Tailwind CSS - https://tailwindcss.com
-Heroicons - https://heroicons.com
+Vite PWA - https://vite-pwa-org.netlify.app
+Satori & Resvg - https://github.com/vercel/satori
 
 /* SITE */
 
 Language: English
 Doctype: HTML5
-IDE: VS Code
-Components: Vue 3, Nuxt 3
-Standards: PWA, A11y, Semantic HTML
-Fonts: DM Sans, DM Mono, DM Serif Display
-
-/* PWA */
-
-Installable: Yes
-Offline Support: Yes
-Service Worker: Enabled
-Update Strategy: Auto
-Cache Strategy: NetworkFirst + CacheFirst
+Framework: Nuxt 4, Vue 3, TypeScript
+Design System: Live Console (OKLCH, Geist, Geist Mono)
+Standards: PWA, OpenGraph, Schema.org JSON-LD, llmstxt.org, A11y
+License: Apache-2.0
 
 /* CONTACT */
 
 Website: https://links.mikeodnis.dev
-GitHub: https://github.com/WomB0ComB0
-Email: mike@mikeodnis.dev
-
-                               .     
-                          .    |    .
-                         -o-  |||  -o-
-                          '   |||   '
-                           ,-.|||.-.  
-                          (   |||   )
-                           `-(|||)-'
-                              |||
-                            .-'|'-.
-                            '-._.-'
-                          
-              Links - Fast, Secure URL Shortener
-                    Built with 💜 in 2025
+Portfolio: https://mikeodnis.dev
+API: https://api.mikeodnis.dev
+CDN: https://cdn.mikeodnis.dev
+Repository: https://github.com/WomB0ComB0/link-shortener

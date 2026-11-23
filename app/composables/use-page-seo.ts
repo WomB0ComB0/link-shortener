@@ -15,6 +15,10 @@
  */
 
 import { app } from "../constants/app";
+import {
+	buildBreadcrumbJsonLd,
+	buildSiteGraphJsonLd,
+} from "../utils/structured-data";
 
 export interface PageSeoOptions {
 	readonly title: string;
@@ -22,8 +26,13 @@ export interface PageSeoOptions {
 	readonly path?: string;
 	/** Use the hero site card (`/opengraph-image`) instead of a dynamic `/api/og` page card. */
 	readonly useSiteCard?: boolean;
+	/** Mark page as non-indexable (e.g. authenticated app shells or offline fallback). */
+	readonly noIndex?: boolean;
 	readonly robots?: string;
 }
+
+const DEFAULT_INDEX_ROBOTS =
+	"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1";
 
 /**
  * Build the canonical OpenGraph image URL for a page (dynamic `/api/og` card or
@@ -46,16 +55,21 @@ export function buildOgImageUrl(options: {
 }
 
 /**
- * Sets complete OpenGraph, Twitter Card, and canonical metadata for any page.
+ * Sets complete OpenGraph, Twitter Card, robots, canonical URL, and Schema.org
+ * JSON-LD structured data (SEO + AEO + GEO) for any page.
  */
 export function usePageSeo(options: PageSeoOptions): void {
 	const fullTitle =
 		options.title === app.name || options.title.includes("Links")
 			? options.title
 			: `${options.title} — ${app.shortName}`;
-	const canonicalUrl = options.path
-		? `${app.url}${options.path.startsWith("/") ? options.path : `/${options.path}`}`
-		: app.url;
+	const normalizedPath = options.path
+		? options.path.startsWith("/")
+			? options.path
+			: `/${options.path}`
+		: "/";
+	const canonicalUrl =
+		normalizedPath === "/" ? `${app.url}/` : `${app.url}${normalizedPath}`;
 	const ogImage = buildOgImageUrl({
 		title: options.title,
 		description: options.description,
@@ -65,13 +79,18 @@ export function usePageSeo(options: PageSeoOptions): void {
 		? `${app.url}/twitter-image`
 		: ogImage;
 	const imageAlt = `${fullTitle}. ${options.description}`;
+	const robots =
+		options.robots ??
+		(options.noIndex ? "noindex, nofollow" : DEFAULT_INDEX_ROBOTS);
 
 	useSeoMeta({
 		title: fullTitle,
 		description: options.description,
+		robots,
 		ogTitle: fullTitle,
 		ogDescription: options.description,
 		ogType: "website",
+		ogLocale: "en_US",
 		ogSiteName: app.name,
 		ogUrl: canonicalUrl,
 		ogImage,
@@ -85,10 +104,21 @@ export function usePageSeo(options: PageSeoOptions): void {
 		twitterImage,
 		twitterImageAlt: imageAlt,
 		twitterCreator: "@mike_odnis",
-		...(options.robots ? { robots: options.robots } : {}),
 	});
+
+	const jsonLd =
+		normalizedPath === "/"
+			? buildSiteGraphJsonLd()
+			: buildBreadcrumbJsonLd(normalizedPath, options.title);
 
 	useHead({
 		link: [{ rel: "canonical", href: canonicalUrl }],
+		script: [
+			{
+				key: "ld-json",
+				type: "application/ld+json",
+				innerHTML: JSON.stringify(jsonLd),
+			},
+		],
 	});
 }

@@ -1,52 +1,91 @@
-# robots.txt for Links - URL Shortener
+# robots.txt for Links — Mike Odnis
 # https://links.mikeodnis.dev
 
-# Allow all bots to access public pages
+# Default rules for search, social preview, and answer-engine crawlers
 User-agent: *
 Allow: /
 Allow: /create
 Allow: /auth
+Allow: /api/og
+Allow: /opengraph-image
+Allow: /twitter-image
+Allow: /manifest.webmanifest
+Allow: /manifest.json
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /assets/
+Allow: /pwa/
 
-# Disallow crawling of user-specific pages
+# Keep authenticated app shells, APIs, and service-worker internals out of indexes
+Disallow: /dashboard
+Disallow: /keys
+Disallow: /api/
+Disallow: /offline
+Disallow: /sw.js
+Disallow: /workbox-*.js
+
+# Primary search & answer-engine crawlers (explicitly allow public pages, OG cards & llms.txt)
+User-agent: Googlebot
+Allow: /
+Allow: /api/og
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /dashboard
+Disallow: /keys
+Disallow: /api/
+Disallow: /offline
+
+User-agent: Bingbot
+Allow: /
+Allow: /api/og
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /dashboard
+Disallow: /keys
+Disallow: /api/
+Disallow: /offline
+
+User-agent: Applebot
+Allow: /
+Allow: /api/og
+Disallow: /dashboard
+Disallow: /keys
+Disallow: /api/
+Disallow: /offline
+
+User-agent: OAI-SearchBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
 Disallow: /dashboard
 Disallow: /keys
 Disallow: /api/
 
-# Disallow offline page (PWA fallback)
-Disallow: /offline
-
-# Disallow PWA service worker files
-Disallow: /sw.js
-Disallow: /workbox-*.js
-Disallow: /manifest.webmanifest
-
-# Allow PWA manifest for app stores
-Allow: /manifest.json
-
-# Allow static assets
-Allow: /assets/
-Allow: /pwa/
-
-# Sitemap location
-Sitemap: https://links.mikeodnis.dev/sitemap.xml
-
-# Crawl delay (be nice to servers)
-Crawl-delay: 1
-
-# Specific bot rules
-User-agent: Googlebot
+User-agent: ChatGPT-User
 Allow: /
-Crawl-delay: 0
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /dashboard
+Disallow: /keys
+Disallow: /api/
 
-User-agent: Bingbot
+User-agent: PerplexityBot
 Allow: /
-Crawl-delay: 1
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /dashboard
+Disallow: /keys
+Disallow: /api/
 
-User-agent: Slurp
+User-agent: Claude-SearchBot
 Allow: /
-Crawl-delay: 1
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /dashboard
+Disallow: /keys
+Disallow: /api/
 
-# Block bad bots
+# Block aggressive SEO scrapers
 User-agent: AhrefsBot
 Disallow: /
 
@@ -58,3 +97,5 @@ Disallow: /
 
 User-agent: MJ12bot
 Disallow: /
+
+Sitemap: https://links.mikeodnis.dev/sitemap.xml

@@ -1,0 +1,69 @@
+# Links — Mike Odnis (Full Technical Reference)
+
+> High-throughput, security-verified URL shortener at https://links.mikeodnis.dev. Built by Mike Odnis (https://mikeodnis.dev) and licensed under Apache-2.0.
+
+## Architecture Overview
+
+1. **Single-Hop Redirect Hot Path (`GET /{code}`)**:
+   - Intercepted directly at Nitro server middleware (`server/middleware/02-shortlink-redirect.ts`) before Vue SSR.
+   - Multi-tier cache-aside lookup (`server/cache/redirect-cache.ts`):
+     - **L1**: In-process bounded hot-key LRU (`2,000` keys, `3s` TTL).
+     - **Single-Flight**: Per-key promise coalescing eliminates cache stampedes on viral links.
+     - **L2**: Upstash Redis (`short:<code>`, TTL = `min(24h, expires_at - now)`, negative cache `NOT_FOUND` for `60s`, circuit-broken after 2 failures for `30s`).
+     - **Source of Truth**: PostgreSQL via Hasura GraphQL with explicit per-request `AbortSignal.timeout`.
+   - Every hit and miss re-validates active status (`410 Gone` if disabled or expired) and runs CPU-only destination SSRF/scheme checks before emitting `302 Found` with `Cache-Control: private, max-age=90`, `Referrer-Policy: no-referrer`, and `X-Robots-Tag: noindex, nofollow`.
+
+2. **Write Path & Short-Code Generation**:
+   - Cryptographically unbiased Base62 rejection sampling (`< 248`, zero modulo bias), default length `7` (`62^7 ≈ 3.52T` codes; legacy 6-char codes remain supported).
+   - Atomic `INSERT` with up to 5 collision retries on random codes (no `SELECT`-then-`INSERT` race condition) and immediate `409 Conflict` on taken custom aliases.
+   - URL normalization via WHATWG `URL`, reserved-route blocklist, and `<= 1 year` expiry cap for anonymous creations.
+
+3. **6-Stage Synchronous URL Security Pipeline**:
+   - Runs on both link creation (`POST /api/links/create`) and destination edits (`PATCH /api/links/update`):
+     1. Strict URL syntax, protocol (`http`/`https` only), non-standard port, embedded credentials, and SSRF/private-IP guard
+     2. DNS resolution & private-network rebinding check
+     3. TLS/SSL certificate inspection
+     4. Multi-hop redirect chain inspection
+     5. Phishing & homograph/punycode heuristics
+     6. Malware & threat-list verification
+   - Fails closed (`503`) on unexpected pipeline failures; blocks high/critical risk (`403`).
+
+4. **Link Lifecycle & Immediate Cache Invalidation**:
+   - `PATCH /api/links/update`: Owner-authorized destination, active toggle, and expiry edits; DB-first write followed by immediate L1 + Redis `DEL`.
+   - `DELETE /api/links/delete`: Owner-authorized deletion; DB-first delete followed by immediate L1 + Redis `DEL`.
+
+5. **Privacy-First Batched Click Analytics**:
+   - Non-blocking in-process bounded queue (`maxBufferSize: 500`, flushes batches of `50` or every `2s` via a single `insert_clicks` GraphQL mutation; drops under backpressure rather than stalling redirects).
+   - **Privacy by default**: Raw client IP addresses are never stored (`ip_address: null`); referrer query strings and fragments are stripped; only coarse geo (`country`, `city`) and device class (`desktop`/`mobile`/`tablet`/`bot`/`other`) are kept.
+
+## API Reference
+
+| Method & Path | Auth | Purpose |
+|---|---|---|
+| `GET /{code}` | Public (`100 req/60s`) | Single-hop `302 Found` redirect (`404` missing, `410` disabled/expired, `503` outage) |
+| `GET /api/{code}` | Public (`100 req/60s`) | Backwards-compatible redirect alias |
+| `POST /api/links/create` | Session, `sk_` API key, or master password (`10 req/60s`) | Verify and create short link |
+| `PATCH /api/links/update` | Owner session/API key or master password | Edit destination (re-verified), active flag, or expiry + invalidate cache |
+| `DELETE /api/links/delete` | Owner session/API key or master password | Delete link + invalidate cache |
+| `GET /api/links/me` | Session | List authenticated user's links |
+| `GET /api/links/public` | Public | List public showcase links |
+| `GET /api/links/analytics?shortLinkId={uuid}` | Owner session/API key or master password | Inspect link click analytics |
+| `GET /api/security/verify?url={url}` | Public | Run 6-stage URL security verification |
+| `GET /api/health` | Public (unthrottled) | Hasura + Redis readiness and live redirect SLO/cache/analytics telemetry |
+| `GET /api/og?title=…&description=…` | Public (unthrottled) | Dynamic `1200x630` Live Console OpenGraph PNG |
+| `POST /api/keys/create`, `GET /api/keys/list`, `POST /api/keys/revoke` | Interactive session only | Manage SHA-256 hashed `sk_` API keys |
+
+## Technology Stack
+
+- **Framework**: Nuxt 4 + Nitro + Vue 3 + TypeScript (strict)
+- **UI & Design System**: Nuxt UI v4 + Tailwind CSS v4, Live Console OKLCH palette (`#0c0c14` canvas, `#8884d5` periwinkle brand, `#4bde81` live green), Geist + Geist Mono
+- **Data & Cache**: PostgreSQL via Hasura GraphQL + Upstash Redis (sliding-window rate limits, IP/CIDR banlists, redirect cache-aside)
+- **OpenGraph**: Satori + `@resvg/resvg-js` dynamic `1200x630` PNG renderer
+- **PWA**: `@vite-pwa/nuxt` with Workbox, wolf-mark SVG/PNG/maskable icons, shortcuts, and `share_target`
+
+## Maintainer & Entity Links
+
+- **Author**: Mike Odnis — https://mikeodnis.dev
+- **GitHub**: https://github.com/WomB0ComB0/link-shortener
+- **Contact**: mike@mikeodnis.dev
+- **License**: Apache License 2.0

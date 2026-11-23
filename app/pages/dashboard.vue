@@ -181,5 +181,6 @@ usePageSeo({
 	description:
 		"Manage your short links, monitor destination health, and inspect click analytics.",
 	path: "/dashboard",
+	noIndex: true,
 });
 </script>

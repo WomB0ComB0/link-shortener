@@ -79,6 +79,12 @@ export default defineNuxtConfig({
 				{ rel: "apple-touch-icon", href: "/pwa/apple-touch-icon.png" },
 				{ rel: "mask-icon", href: "/pwa/icon.svg", color: THEME_COLOR },
 				{ rel: "manifest", href: "/manifest.webmanifest" },
+				{
+					rel: "alternate",
+					type: "text/plain",
+					href: "/llms.txt",
+					title: "LLM-friendly site index",
+				},
 			],
 			script: [
 				{
@@ -89,6 +95,12 @@ export default defineNuxtConfig({
 			],
 			meta: [
 				{ name: "description", content: app.description },
+				{ name: "author", content: "Mike Odnis" },
+				{
+					name: "robots",
+					content:
+						"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+				},
 				{ name: "color-scheme", content: "dark" },
 				{ property: "og:site_name", content: app.name },
 				{ property: "og:type", content: "website" },
