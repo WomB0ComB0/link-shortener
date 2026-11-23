@@ -5,15 +5,15 @@ const {
 	readBody,
 	getUserIdFromHeaders,
 	verifyLink,
-	executeQuery,
 	executeMutation,
+	invalidateRedirectCache,
 } = vi.hoisted(() => ({
 	getHeader: vi.fn(),
 	readBody: vi.fn(),
 	getUserIdFromHeaders: vi.fn(),
 	verifyLink: vi.fn(),
-	executeQuery: vi.fn(),
 	executeMutation: vi.fn(),
+	invalidateRedirectCache: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("h3", () => ({
@@ -28,24 +28,51 @@ vi.mock("../../../server/security/verification-pipeline", () => ({
 	verifyLink,
 }));
 vi.mock("../../../server/utils/graphql", () => ({
-	executeQuery,
 	executeMutation,
 }));
+vi.mock("../../../server/cache/redirect-cache", () => ({
+	invalidateRedirectCache,
+}));
 
+import { metrics } from "../../../server/observability/metrics";
 import createLinkHandler from "./create.post";
 
 function makeEvent() {
-	return { context: {}, node: { req: { headers: {} } } } as any;
+	return { context: {}, node: { req: { headers: {} } } } as never;
 }
 
-describe("POST /api/links/create strict security enforcement", () => {
+function safeVerification(url = "https://example.com/page") {
+	return {
+		url,
+		isVerified: true,
+		overallRisk: "safe",
+		riskScore: 0,
+		checks: {
+			urlValidation: { isValid: true, warnings: [] },
+			dnsCheck: { isValid: true, warnings: [] },
+			sslCheck: { isValid: true, warnings: [] },
+			redirectCheck: { isValid: true, warnings: [], finalUrl: url, hopCount: 0 },
+			phishingCheck: { isPhishing: false, warnings: [] },
+			malwareCheck: { isSafe: true, threats: [], errors: [], warnings: [] },
+		},
+		summary: {
+			totalErrors: 0,
+			totalWarnings: 0,
+			criticalIssues: [],
+			recommendations: [],
+		},
+	};
+}
+
+describe("POST /api/links/create strict security & atomic insert enforcement", () => {
 	beforeEach(() => {
 		getHeader.mockReset();
 		readBody.mockReset();
 		getUserIdFromHeaders.mockReset();
 		verifyLink.mockReset();
-		executeQuery.mockReset();
 		executeMutation.mockReset();
+		invalidateRedirectCache.mockClear();
+		metrics.reset();
 		delete process.env.ADMIN_BYPASS_SECRET;
 
 		getUserIdFromHeaders.mockResolvedValue("user-123");
@@ -60,18 +87,10 @@ describe("POST /api/links/create strict security enforcement", () => {
 			name === "x-skip-verification" ? "true" : undefined,
 		);
 		verifyLink.mockResolvedValueOnce({
-			url: "https://example.com/page",
+			...safeVerification(),
 			isVerified: false,
 			overallRisk: "critical",
 			riskScore: 90,
-			checks: {
-				urlValidation: { isValid: false, warnings: [] },
-				dnsCheck: { isValid: false, warnings: [] },
-				sslCheck: { isValid: false, warnings: [] },
-				redirectCheck: { isValid: false, warnings: [], finalUrl: "https://example.com/page", hopCount: 0 },
-				phishingCheck: { isPhishing: false, warnings: [] },
-				malwareCheck: { isSafe: true, warnings: [] },
-			},
 			summary: {
 				totalErrors: 1,
 				totalWarnings: 0,
@@ -89,18 +108,10 @@ describe("POST /api/links/create strict security enforcement", () => {
 
 	it("blocks high-risk and unverified URLs even for authenticated users", async () => {
 		verifyLink.mockResolvedValueOnce({
-			url: "https://example.com/page",
+			...safeVerification(),
 			isVerified: false,
 			overallRisk: "high",
 			riskScore: 68,
-			checks: {
-				urlValidation: { isValid: true, warnings: [] },
-				dnsCheck: { isValid: true, warnings: [] },
-				sslCheck: { isValid: true, warnings: [] },
-				redirectCheck: { isValid: true, warnings: [], finalUrl: "https://example.com/page", hopCount: 0 },
-				phishingCheck: { isPhishing: true, warnings: [] },
-				malwareCheck: { isSafe: true, warnings: [] },
-			},
 			summary: {
 				totalErrors: 0,
 				totalWarnings: 1,
@@ -132,9 +143,6 @@ describe("POST /api/links/create strict security enforcement", () => {
 			if (name === "x-admin-bypass") return "super-strong-admin-bypass-secret-1234";
 			return undefined;
 		});
-		executeQuery
-			.mockResolvedValueOnce({ data: { short_links: [] }, error: null })
-			.mockResolvedValueOnce({ data: { short_links: [] }, error: null });
 		executeMutation.mockResolvedValueOnce({
 			data: {
 				insert_short_links_one: {
@@ -152,6 +160,7 @@ describe("POST /api/links/create strict security enforcement", () => {
 
 		expect(verifyLink).not.toHaveBeenCalled();
 		expect(result.shortUrl).toBe("my-alias");
+		expect(invalidateRedirectCache).toHaveBeenCalledWith(["my-alias", "my-alias"]);
 	});
 
 	it("blocks reserved application route names as custom aliases", async () => {
@@ -167,36 +176,28 @@ describe("POST /api/links/create strict security enforcement", () => {
 		expect(verifyLink).not.toHaveBeenCalled();
 	});
 
-	it("ignores spoofed userId in request body for anonymous master-password requests", async () => {
+	it("ignores spoofed userId in request body and enforces anonymous 1-year expiry cap", async () => {
+		getUserIdFromHeaders.mockResolvedValueOnce(null);
+		const twoYearsFromNow = new Date(Date.now() + 730 * 24 * 60 * 60 * 1000);
+		readBody.mockResolvedValueOnce({
+			originalUrl: "https://EXAMPLE.COM/page",
+			customAlias: "anon-too-long",
+			expiresAt: twoYearsFromNow.toISOString(),
+		});
+
+		await expect(createLinkHandler(makeEvent())).rejects.toMatchObject({
+			statusCode: 400,
+			message: expect.stringContaining("1 year"),
+		});
+
+		// Valid anonymous creation normalizes host and strips spoofed userId
 		getUserIdFromHeaders.mockResolvedValueOnce(null);
 		readBody.mockResolvedValueOnce({
-			originalUrl: "https://example.com/page",
+			originalUrl: "HTTPS://EXAMPLE.COM/page",
 			customAlias: "anon-link",
 			userId: "550e8400-e29b-41d4-a716-446655440000",
 		});
-		verifyLink.mockResolvedValueOnce({
-			url: "https://example.com/page",
-			isVerified: true,
-			overallRisk: "safe",
-			riskScore: 0,
-			checks: {
-				urlValidation: { isValid: true, warnings: [] },
-				dnsCheck: { isValid: true, warnings: [] },
-				sslCheck: { isValid: true, warnings: [] },
-				redirectCheck: { isValid: true, warnings: [], finalUrl: "https://example.com/page", hopCount: 0 },
-				phishingCheck: { isPhishing: false, warnings: [] },
-				malwareCheck: { isSafe: true, threats: [], errors: [], warnings: [] },
-			},
-			summary: {
-				totalErrors: 0,
-				totalWarnings: 0,
-				criticalIssues: [],
-				recommendations: [],
-			},
-		});
-		executeQuery
-			.mockResolvedValueOnce({ data: { short_links: [] }, error: null })
-			.mockResolvedValueOnce({ data: { short_links: [] }, error: null });
+		verifyLink.mockResolvedValueOnce(safeVerification());
 		executeMutation.mockResolvedValueOnce({
 			data: {
 				insert_short_links_one: {
@@ -214,7 +215,57 @@ describe("POST /api/links/create strict security enforcement", () => {
 
 		expect(executeMutation).toHaveBeenCalledWith(
 			expect.any(String),
-			expect.objectContaining({ userId: null }),
+			expect.objectContaining({
+				userId: null,
+				originalUrl: "https://example.com/page",
+			}),
 		);
+	});
+
+	it("retries atomically on random code UNIQUE collisions and returns 409 on custom alias conflicts", async () => {
+		// Random code: 1st INSERT collides -> retries automatically and succeeds on 2nd
+		readBody.mockResolvedValueOnce({ originalUrl: "https://example.com/retry" });
+		verifyLink.mockResolvedValueOnce(safeVerification("https://example.com/retry"));
+		executeMutation
+			.mockResolvedValueOnce({
+				data: null,
+				error: new Error("Uniqueness violation. duplicate key value violates unique constraint"),
+			})
+			.mockResolvedValueOnce({
+				data: {
+					insert_short_links_one: {
+						id: "550e8400-e29b-41d4-a716-446655440002",
+						original_url: "https://example.com/retry",
+						short_url: "aB92xK7",
+						custom_alias: null,
+						created_at: "2026-01-01T00:00:00.000Z",
+					},
+				},
+				error: null,
+			});
+
+		const created = await createLinkHandler(makeEvent());
+		expect(created.shortUrl).toBe("aB92xK7");
+		expect(executeMutation).toHaveBeenCalledTimes(2);
+		expect(metrics.codeGenCollisions).toBe(1);
+		expect(metrics.codeGenRetries).toBe(1);
+
+		// Custom alias collision: fails immediately with 409 (no retries)
+		executeMutation.mockReset();
+		readBody.mockResolvedValueOnce({
+			originalUrl: "https://example.com/taken",
+			customAlias: "taken-alias",
+		});
+		verifyLink.mockResolvedValueOnce(safeVerification("https://example.com/taken"));
+		executeMutation.mockResolvedValueOnce({
+			data: null,
+			error: new Error("Uniqueness violation (23505)"),
+		});
+
+		await expect(createLinkHandler(makeEvent())).rejects.toMatchObject({
+			statusCode: 409,
+			statusMessage: "Conflict",
+		});
+		expect(executeMutation).toHaveBeenCalledTimes(1);
 	});
 });

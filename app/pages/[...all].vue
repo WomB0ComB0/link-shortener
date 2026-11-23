@@ -15,18 +15,9 @@
 -->
 
 <script setup lang="ts">
-const route = useRoute();
-
-const code = Array.isArray(route.params.all)
-	? route.params.all[0]
-	: route.params.all;
-
-if (code) {
-	await navigateTo(`/api/${code}`, {
-		external: true,
-		redirectCode: 302,
-	});
-}
+// Single-segment short codes are redirected directly in a single hop by
+// `server/middleware/02-shortlink-redirect.ts` before Vue SSR runs.
+// Any request reaching this catch-all page is a genuine 404.
 </script>
 
 <template>

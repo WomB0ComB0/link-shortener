@@ -24,18 +24,32 @@ import {
 } from "../schemas/index.js";
 
 /**
- * Generate a random short URL code
+ * Generate a cryptographically unbiased random Base62 short URL code
+ * using rejection sampling (discards bytes >= 248 so 248 % 62 === 0).
  */
 export function generateShortCode(length: number = SHORT_URL_LENGTH): string {
-	let result = "";
 	const charsetLength = SHORT_URL_CHARSET.length;
-	const bytes = randomBytes(length);
+	const maxValidByte = Math.floor(256 / charsetLength) * charsetLength; // 248 for Base62
+	let result = "";
 
-	for (let i = 0; i < length; i++) {
-		result += SHORT_URL_CHARSET[bytes[i]! % charsetLength];
+	while (result.length < length) {
+		const bytes = randomBytes(Math.max(16, (length - result.length) * 2));
+		for (let i = 0; i < bytes.length && result.length < length; i++) {
+			const byte = bytes[i]!;
+			if (byte < maxValidByte) {
+				result += SHORT_URL_CHARSET[byte % charsetLength];
+			}
+		}
 	}
 
 	return result;
+}
+
+/**
+ * Normalize a destination URL (lowercase scheme & host via WHATWG URL parser).
+ */
+export function normalizeDestinationUrl(rawUrl: string): string {
+	return new URL(rawUrl.trim()).toString();
 }
 
 /**

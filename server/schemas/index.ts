@@ -52,15 +52,15 @@ export const CustomAliasSchema = pipe(
 );
 
 /**
- * Short URL Code Schema - 6 character alphanumeric code
+ * Short URL Code Schema - 6 to 12 character Base62 code (backwards-compatible with legacy 6-char codes)
  */
 export const ShortUrlCodeSchema = pipe(
 	S.String,
 	S.minLength(6),
-	S.maxLength(6),
+	S.maxLength(12),
 	S.pattern(/^[a-zA-Z0-9]+$/),
 	S.annotations({
-		message: () => "Short URL code must be exactly 6 alphanumeric characters",
+		message: () => "Short URL code must be 6-12 alphanumeric characters",
 	}),
 );
 
@@ -270,9 +270,10 @@ export class UpdateShortLinkRequest extends S.Class<UpdateShortLinkRequest>(
 	"UpdateShortLinkRequest",
 )({
 	id: UUIDSchema,
-	masterPassword: MasterPasswordSchema,
+	masterPassword: S.optional(MasterPasswordSchema),
+	originalUrl: S.optional(UrlSchema),
 	isActive: S.optional(S.Boolean),
-	expiresAt: S.optional(S.DateFromString),
+	expiresAt: S.optional(S.NullOr(S.DateFromString)),
 }) {}
 
 // Delete Short Link Request
@@ -280,7 +281,7 @@ export class DeleteShortLinkRequest extends S.Class<DeleteShortLinkRequest>(
 	"DeleteShortLinkRequest",
 )({
 	id: UUIDSchema,
-	masterPassword: MasterPasswordSchema,
+	masterPassword: S.optional(MasterPasswordSchema),
 }) {}
 
 // Get Analytics Request

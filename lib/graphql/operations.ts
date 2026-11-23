@@ -159,7 +159,9 @@ export const CREATE_SHORT_LINK = `
   }
 `;
 
-// Get short link by code (for redirect)
+// Get short link by code (for redirect).
+// Intentionally omits `is_active: {_eq: true}` so disabled links return 410 Gone
+// (instead of 404 Not Found) and can be cached with their status.
 export const GET_SHORT_LINK_BY_CODE = `
   query GetShortLinkByCode($code: String!) {
     short_links(
@@ -168,8 +170,8 @@ export const GET_SHORT_LINK_BY_CODE = `
           {short_url: {_eq: $code}}
           {custom_alias: {_eq: $code}}
         ]
-        is_active: {_eq: true}
       }
+      limit: 1
     ) {
       id
       short_url
@@ -181,7 +183,50 @@ export const GET_SHORT_LINK_BY_CODE = `
   }
 `;
 
-// Record a click
+// Get short link by ID (for ownership checks & cache invalidation on update/delete)
+export const GET_SHORT_LINK_BY_ID = `
+  query GetShortLinkById($id: uuid!) {
+    short_links_by_pk(id: $id) {
+      id
+      user_id
+      short_url
+      original_url
+      custom_alias
+      is_active
+      expires_at
+      created_at
+    }
+  }
+`;
+
+// Update an existing short link
+export const UPDATE_SHORT_LINK = `
+  mutation UpdateShortLink($id: uuid!, $changes: short_links_set_input!) {
+    update_short_links_by_pk(pk_columns: {id: $id}, _set: $changes) {
+      id
+      user_id
+      short_url
+      original_url
+      custom_alias
+      is_active
+      expires_at
+      created_at
+    }
+  }
+`;
+
+// Delete an existing short link
+export const DELETE_SHORT_LINK = `
+  mutation DeleteShortLink($id: uuid!) {
+    delete_short_links_by_pk(id: $id) {
+      id
+      short_url
+      custom_alias
+    }
+  }
+`;
+
+// Record a single click
 export const CREATE_CLICK = `
   mutation CreateClick(
     $shortLinkId: uuid!
@@ -201,6 +246,24 @@ export const CREATE_CLICK = `
     }) {
       id
       timestamp
+    }
+  }
+`;
+
+// Batch insert buffered clicks in one GraphQL round-trip
+export const CREATE_CLICKS_BATCH = `
+  mutation CreateClicksBatch($objects: [clicks_insert_input!]!) {
+    insert_clicks(objects: $objects) {
+      affected_rows
+    }
+  }
+`;
+
+// Lightweight readiness probe query
+export const HEALTH_CHECK_QUERY = `
+  query HealthCheck {
+    short_links(limit: 1) {
+      id
     }
   }
 `;

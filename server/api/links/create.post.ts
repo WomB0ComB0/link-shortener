@@ -1,7 +1,7 @@
 /**
  * Copyright 2025 Mike Odnis
  *
- * Licensed under the License, Version 2.0 (the "License");
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -16,11 +16,14 @@
 
 import { timingSafeEqual } from "node:crypto";
 import { createError, defineEventHandler, getHeader, readBody } from "h3";
+import { CREATE_SHORT_LINK } from "../../../lib/graphql/operations";
+import { invalidateRedirectCache } from "../../../server/cache/redirect-cache";
 import {
-	CREATE_SHORT_LINK,
-	GET_SHORT_LINK_BY_ALIAS,
-	GET_SHORT_LINK_BY_URL,
-} from "../../../lib/graphql/operations";
+	ANON_MAX_EXPIRY_MS,
+	MAX_CODE_GEN_RETRIES,
+	RESERVED_ALIASES,
+} from "../../../server/constants/index";
+import { metrics } from "../../../server/observability/metrics";
 import {
 	CreateShortLinkRequest,
 	CreateShortLinkResponse,
@@ -31,9 +34,31 @@ import {
 	verifyLink,
 } from "../../../server/security/verification-pipeline";
 import { getUserIdFromHeaders } from "../../../server/utils/auth";
-import { executeMutation, executeQuery } from "../../../server/utils/graphql";
-import { generateShortCode } from "../../../server/utils/helpers";
+import { executeMutation } from "../../../server/utils/graphql";
+import {
+	generateShortCode,
+	normalizeDestinationUrl,
+} from "../../../server/utils/helpers";
 import { validateAsync } from "../../../server/utils/validation";
+
+interface CreatedShortLinkRow {
+	readonly id: string;
+	readonly original_url: string;
+	readonly short_url: string;
+	readonly custom_alias: string | null;
+	readonly created_at: string;
+}
+
+function isUniqueViolationError(error: Error | null): boolean {
+	if (!error) return false;
+	const msg = error.message.toLowerCase();
+	return (
+		msg.includes("uniqueness violation") ||
+		msg.includes("unique constraint") ||
+		msg.includes("duplicate key") ||
+		msg.includes("23505")
+	);
+}
 
 function isValidAdminBypass(event: Parameters<typeof getHeader>[0]): boolean {
 	const configuredSecret = process.env.ADMIN_BYPASS_SECRET?.trim();
@@ -100,27 +125,6 @@ function summarizeVerification(verification: LinkVerificationResult) {
 	};
 }
 
-const RESERVED_ALIASES = new Set([
-	"api",
-	"auth",
-	"create",
-	"dashboard",
-	"keys",
-	"offline",
-	"admin",
-	"login",
-	"logout",
-	"register",
-	"health",
-	"status",
-	"assets",
-	"_nuxt",
-	"pwa",
-	"robots",
-	"sitemap",
-	"favicon",
-]);
-
 export default defineEventHandler(async (event) => {
 	// Resolve authenticated user ID (set by auth middleware for session cookie, Bearer, or sk_ API key)
 	let authenticatedUserId: string | null = event.context?.user?.id ?? null;
@@ -136,7 +140,8 @@ export default defineEventHandler(async (event) => {
 	const rawBody = await readBody(event);
 	const validatedBody = await validateAsync(CreateShortLinkRequest, rawBody);
 
-	const { originalUrl, customAlias, expiresAt } = validatedBody;
+	const { customAlias, expiresAt } = validatedBody;
+	const originalUrl = normalizeDestinationUrl(validatedBody.originalUrl);
 
 	// Prevent route shadowing with reserved application paths
 	if (customAlias && RESERVED_ALIASES.has(customAlias.toLowerCase())) {
@@ -149,6 +154,25 @@ export default defineEventHandler(async (event) => {
 
 	// Never trust client-supplied userId from request body (prevents IDOR attribution spoofing)
 	const effectiveUserId = authenticatedUserId;
+
+	// Enforce expiry policy: reject past dates and cap anonymous expiry to <= 1 year
+	if (expiresAt) {
+		const nowMs = Date.now();
+		if (expiresAt.getTime() <= nowMs) {
+			throw createError({
+				statusCode: 400,
+				statusMessage: "Bad Request",
+				message: "Expiration date must be in the future.",
+			});
+		}
+		if (!effectiveUserId && expiresAt.getTime() - nowMs > ANON_MAX_EXPIRY_MS) {
+			throw createError({
+				statusCode: 400,
+				statusMessage: "Bad Request",
+				message: "Anonymous links cannot expire more than 1 year in the future.",
+			});
+		}
+	}
 
 	// ============================================
 	// STRICT 6-STAGE SECURITY VERIFICATION PIPELINE
@@ -165,11 +189,9 @@ export default defineEventHandler(async (event) => {
 				},
 			);
 
-			// Store verification result in request context for later use
 			event.context.verification = verification;
 			const verificationSummary = summarizeVerification(verification);
 
-			// Strict enforcement: block any critical/high risk or unverified URL
 			if (
 				!verification.isVerified ||
 				verification.overallRisk === "critical" ||
@@ -190,16 +212,19 @@ export default defineEventHandler(async (event) => {
 				});
 			}
 
-			// Log medium risk URLs that still passed all hard checks
 			if (verification.overallRisk === "medium") {
 				console.info(`Medium-risk URL: ${originalUrl}`, {
 					riskScore: verification.riskScore,
 					warnings: verification.summary.recommendations,
 				});
 			}
-		} catch (verificationError: any) {
-			if (verificationError?.statusCode) {
-				throw verificationError; // Re-throw structured HTTP errors
+		} catch (verificationError: unknown) {
+			if (
+				typeof verificationError === "object" &&
+				verificationError !== null &&
+				"statusCode" in verificationError
+			) {
+				throw verificationError;
 			}
 
 			// Fail closed on unexpected security pipeline failures
@@ -214,70 +239,51 @@ export default defineEventHandler(async (event) => {
 	}
 
 	// ============================================
-	// LINK CREATION (existing logic)
+	// ATOMIC INSERT WITH UNIQUE-CONSTRAINT RETRIES
+	// (No TOCTOU SELECT-then-INSERT race condition)
 	// ============================================
+	const maxAttempts = customAlias ? 1 : MAX_CODE_GEN_RETRIES;
+	let createdLink: CreatedShortLinkRow | null = null;
+	let lastError: Error | null = null;
 
-	// Generate short code if no custom alias provided
-	const shortUrl = customAlias || generateShortCode();
-
-	// Check if short URL already exists
-	const { data: existingByUrl, error: urlError } = await executeQuery<{
-		short_links: any[];
-	}>(GET_SHORT_LINK_BY_URL, { shortUrl });
-
-	if (urlError) {
-		throw createError({
-			statusCode: 500,
-			statusMessage: "Database Error",
-			message: "Failed to check for existing short URL",
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		const shortUrl = customAlias || generateShortCode();
+		const { data: result, error: mutationError } = await executeMutation<{
+			insert_short_links_one: CreatedShortLinkRow;
+		}>(CREATE_SHORT_LINK, {
+			originalUrl,
+			shortUrl,
+			customAlias: customAlias || null,
+			userId: effectiveUserId,
+			expiresAt: expiresAt ? expiresAt.toISOString() : null,
 		});
-	}
 
-	if (existingByUrl && existingByUrl.short_links.length > 0) {
-		throw createError({
-			statusCode: 409,
-			statusMessage: "Conflict",
-			message: customAlias
-				? `The custom alias "${customAlias}" is already taken. Please choose a different one.`
-				: "Generated code collision. Please try again.",
-		});
-	}
-
-	// If custom alias provided, also check it doesn't exist
-	if (customAlias) {
-		const { data: existingByAlias, error: aliasError } = await executeQuery<{
-			short_links: any[];
-		}>(GET_SHORT_LINK_BY_ALIAS, { customAlias });
-
-		if (aliasError) {
-			throw createError({
-				statusCode: 500,
-				statusMessage: "Database Error",
-				message: "Failed to check for existing alias",
-			});
+		if (!mutationError && result?.insert_short_links_one) {
+			createdLink = result.insert_short_links_one;
+			break;
 		}
 
-		if (existingByAlias && existingByAlias.short_links.length > 0) {
+		lastError = mutationError;
+		if (isUniqueViolationError(mutationError)) {
+			metrics.codeGenCollisions += 1;
+			if (customAlias) {
+				throw createError({
+					statusCode: 409,
+					statusMessage: "Conflict",
+					message: `The custom alias "${customAlias}" is already taken. Please choose a different one.`,
+				});
+			}
+			if (attempt < maxAttempts) {
+				metrics.codeGenRetries += 1;
+				continue;
+			}
 			throw createError({
 				statusCode: 409,
 				statusMessage: "Conflict",
-				message: `The custom alias "${customAlias}" is already taken. Please choose a different one.`,
+				message: "Unable to allocate a unique short code. Please try again.",
 			});
 		}
-	}
 
-	// Create the short link in Hasura
-	const { data: result, error: mutationError } = await executeMutation<{
-		insert_short_links_one: any;
-	}>(CREATE_SHORT_LINK, {
-		originalUrl,
-		shortUrl,
-		customAlias: customAlias || null,
-		userId: effectiveUserId,
-		expiresAt: expiresAt ? expiresAt.toISOString() : null,
-	});
-
-	if (mutationError || !result) {
 		throw createError({
 			statusCode: 500,
 			statusMessage: "Database Error",
@@ -285,9 +291,23 @@ export default defineEventHandler(async (event) => {
 		});
 	}
 
-	const createdLink = result.insert_short_links_one;
+	if (!createdLink) {
+		console.error("Failed to create short link:", lastError);
+		throw createError({
+			statusCode: 500,
+			statusMessage: "Database Error",
+			message: "Failed to create short link",
+		});
+	}
 
-	// Create response using Effect Schema
+	metrics.linksCreated += 1;
+
+	// Clear any negative NOT_FOUND cache entries for this short code/alias
+	await invalidateRedirectCache([
+		createdLink.short_url,
+		createdLink.custom_alias,
+	]);
+
 	const response = new CreateShortLinkResponse({
 		id: createdLink.id,
 		originalUrl: createdLink.original_url,
@@ -296,10 +316,8 @@ export default defineEventHandler(async (event) => {
 		createdAt: new Date(createdLink.created_at),
 	});
 
-	// Encode response to ensure it matches schema
 	const encodedResponse = encodeSync(CreateShortLinkResponse)(response);
 
-	// Add verification result to response if available
 	if (event.context.verification) {
 		return {
 			...encodedResponse,

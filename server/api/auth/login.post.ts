@@ -54,10 +54,16 @@ export default defineEventHandler(async (event) => {
 
 	try {
 		// Get user by email with password hash
-		const { data, error: queryError } = await executeQuery(
-			GET_USER_BY_EMAIL_WITH_PASSWORD,
-			{ email: email.toLowerCase() },
-		);
+		const { data, error: queryError } = await executeQuery<{
+			users: Array<{
+				id: string;
+				email: string;
+				display_name: string | null;
+				photo_url: string | null;
+				password_hash: string;
+				created_at: string;
+			}>;
+		}>(GET_USER_BY_EMAIL_WITH_PASSWORD, { email: email.toLowerCase() });
 
 		if (queryError) {
 			console.error("GraphQL query error:", queryError);

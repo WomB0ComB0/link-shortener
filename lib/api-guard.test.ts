@@ -50,6 +50,7 @@ function makeBackend(
 			api: makeLimiter(ok),
 			auth: makeLimiter(ok),
 			create: makeLimiter(ok),
+			redirect: makeLimiter(ok),
 			ai: makeLimiter(ok),
 			slow: makeLimiter(slow),
 		},
@@ -89,6 +90,10 @@ describe("API guard & Redis guard client", () => {
 		expect(classifyRequest("GET", "/api/links/public")).toEqual({
 			checkBans: true,
 			limiter: "api",
+		});
+		expect(classifyRequest("GET", "/api/aB92xK7")).toEqual({
+			checkBans: true,
+			limiter: "redirect",
 		});
 	});
 

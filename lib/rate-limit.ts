@@ -26,7 +26,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import type { Redis } from "@upstash/redis";
 
-export type LimiterKind = "api" | "auth" | "create" | "ai" | "slow";
+export type LimiterKind = "api" | "auth" | "create" | "redirect" | "ai" | "slow";
 
 export interface RateLimitResult {
 	readonly success: boolean;
@@ -46,6 +46,7 @@ export const RATE_LIMITS = {
 	api: { tokens: 30, window: "60 s", prefix: "ratelimit:api" },
 	auth: { tokens: 5, window: "10 s", prefix: "ratelimit:auth" },
 	create: { tokens: 10, window: "60 s", prefix: "ratelimit:create" },
+	redirect: { tokens: 100, window: "60 s", prefix: "ratelimit:redirect" },
 	ai: { tokens: 20, window: "86400 s", prefix: "ratelimit:ai" },
 	slow: { tokens: 1, window: "30 s", prefix: "ratelimit:slowmode" },
 } as const satisfies Record<
@@ -77,6 +78,7 @@ export function getLimiters(redis: Redis): Limiters {
 		api: createLimiter(redis, "api"),
 		auth: createLimiter(redis, "auth"),
 		create: createLimiter(redis, "create"),
+		redirect: createLimiter(redis, "redirect"),
 		ai: createLimiter(redis, "ai"),
 		slow: createLimiter(redis, "slow"),
 	};

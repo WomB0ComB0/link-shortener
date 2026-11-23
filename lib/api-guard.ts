@@ -124,6 +124,15 @@ const TIMED_OUT = Symbol("timed-out");
 const isUnder = (pathname: string, prefix: string): boolean =>
 	pathname === prefix || pathname.startsWith(`${prefix}/`);
 
+const API_RESERVED_FIRST_SEGMENTS = new Set([
+	"admin",
+	"auth",
+	"health",
+	"keys",
+	"links",
+	"security",
+]);
+
 /**
  * Classify an incoming request into its guard policy, or `null` if unguarded.
  *
@@ -132,6 +141,7 @@ const isUnder = (pathname: string, prefix: string): boolean =>
  * - `/api/auth/*` uses `auth` (5 req / 10s).
  * - `/api/links/create` uses `create` (10 req / 60s).
  * - `/api/links/analytics` uses `ai` (20 req / 24h).
+ * - `/api/<code>` redirect hot path uses `redirect` (100 req / 60s).
  * - All other `/api/*` routes use `api` (30 req / 60s).
  */
 export function classifyRequest(
@@ -152,6 +162,15 @@ export function classifyRequest(
 	}
 	if (isUnder(pathname, "/api/links/analytics")) {
 		return { checkBans: true, limiter: "ai" };
+	}
+	const rest = pathname.slice("/api/".length);
+	if (
+		(method.toUpperCase() === "GET" || method.toUpperCase() === "HEAD") &&
+		rest.length > 0 &&
+		!rest.includes("/") &&
+		!API_RESERVED_FIRST_SEGMENTS.has(rest.toLowerCase())
+	) {
+		return { checkBans: true, limiter: "redirect" };
 	}
 	return { checkBans: true, limiter: "api" };
 }

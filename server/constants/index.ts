@@ -18,11 +18,44 @@
 export const SHORT_URL_CHARSET =
 	"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-// Default short URL length
-export const SHORT_URL_LENGTH = 6;
+// Default short URL length (7 chars in Base62 = 62^7 ≈ 3.52 trillion codes)
+export const SHORT_URL_LENGTH = 7;
 
 // Maximum length for custom alias
 export const MAX_CUSTOM_ALIAS_LENGTH = 50;
+
+// Maximum collision retry attempts for randomly generated short codes
+export const MAX_CODE_GEN_RETRIES = 5;
+
+// Maximum expiry window for unauthenticated/anonymous link creation (1 year)
+export const ANON_MAX_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;
+
+// Application routes and reserved paths that must never be shadowed by short codes
+export const RESERVED_ALIASES: ReadonlySet<string> = new Set([
+	"api",
+	"auth",
+	"create",
+	"dashboard",
+	"keys",
+	"offline",
+	"admin",
+	"login",
+	"logout",
+	"register",
+	"health",
+	"metrics",
+	"status",
+	"assets",
+	"_nuxt",
+	"pwa",
+	"robots",
+	"sitemap",
+	"favicon",
+	"humans",
+	"llms",
+	"manifest",
+	"sw",
+]);
 
 // Rate limiting configuration
 export const RATE_LIMITS = {

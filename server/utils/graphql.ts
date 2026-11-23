@@ -16,26 +16,48 @@
 
 /**
  * Hasura GraphQL client for server-side operations
- * Type-safe with Effect Schema
+ * Type-safe with Effect Schema and explicit per-request fetch timeouts.
  */
 
 import type { Schema } from "@effect/schema/Schema";
 import * as S from "@effect/schema/Schema";
 import { Client, cacheExchange, fetchExchange } from "@urql/core";
 
+const DEFAULT_HASURA_TIMEOUT_MS = 2500;
+
 let client: Client | null = null;
 
-export function getGraphQLClient() {
+function resolveTimeoutMs(): number {
+	const raw = Number(process.env.HASURA_TIMEOUT_MS);
+	return Number.isFinite(raw) && raw >= 100 ? raw : DEFAULT_HASURA_TIMEOUT_MS;
+}
+
+function createTimedFetch(timeoutMs: number): typeof fetch {
+	return (input, init) => {
+		const timeoutSignal = AbortSignal.timeout(timeoutMs);
+		const signal = init?.signal
+			? AbortSignal.any([init.signal, timeoutSignal])
+			: timeoutSignal;
+		return fetch(input, { ...init, signal });
+	};
+}
+
+export function resetGraphQLClient(): void {
+	client = null;
+}
+
+export function getGraphQLClient(): Client {
 	if (client) {
 		return client;
 	}
 
-	const config = useRuntimeConfig();
+	const config =
+		typeof useRuntimeConfig === "function" ? useRuntimeConfig() : undefined;
 
-	const endpoint = (config.hasuraGraphqlEndpoint ||
-		process.env.HASURA_GRAPHQL_ENDPOINT) as string;
-	const adminSecret = (config.hasuraGraphqlAdminSecret ||
-		process.env.HASURA_GRAPHQL_ADMIN_SECRET) as string;
+	const endpoint = (config?.hasuraGraphqlEndpoint ||
+		process.env.HASURA_GRAPHQL_ENDPOINT) as string | undefined;
+	const adminSecret = (config?.hasuraGraphqlAdminSecret ||
+		process.env.HASURA_GRAPHQL_ADMIN_SECRET) as string | undefined;
 
 	if (!endpoint) {
 		throw new Error("HASURA_GRAPHQL_ENDPOINT is not configured");
@@ -45,23 +67,18 @@ export function getGraphQLClient() {
 		throw new Error("HASURA_GRAPHQL_ADMIN_SECRET is not configured");
 	}
 
-	console.log("[GraphQL] Initializing Hasura client...");
-	console.log("[GraphQL] Endpoint:", endpoint);
-
 	client = new Client({
 		url: endpoint,
 		exchanges: [cacheExchange, fetchExchange],
+		fetch: createTimedFetch(resolveTimeoutMs()),
 		fetchOptions: {
 			headers: {
 				"x-hasura-admin-secret": adminSecret,
 			},
 		},
-		// Disable automatic persisted queries for Hasura
 		requestPolicy: "network-only",
 		preferGetMethod: false,
 	});
-
-	console.log("[GraphQL] Hasura client initialized successfully");
 
 	return client;
 }
@@ -69,13 +86,13 @@ export function getGraphQLClient() {
 /**
  * Execute a GraphQL query
  */
-export async function executeQuery<T = any>(
+export async function executeQuery<T = unknown>(
 	query: string,
-	variables?: Record<string, any>,
+	variables?: Record<string, unknown>,
 ): Promise<{ data: T | null; error: Error | null }> {
 	try {
-		const client = getGraphQLClient();
-		const result = await client.query(query, variables).toPromise();
+		const gqlClient = getGraphQLClient();
+		const result = await gqlClient.query(query, variables).toPromise();
 
 		if (result.error) {
 			console.error("[GraphQL] Query error:", result.error);
@@ -85,20 +102,23 @@ export async function executeQuery<T = any>(
 		return { data: result.data as T, error: null };
 	} catch (error) {
 		console.error("[GraphQL] Query exception:", error);
-		return { data: null, error: error as Error };
+		return {
+			data: null,
+			error: error instanceof Error ? error : new Error(String(error)),
+		};
 	}
 }
 
 /**
  * Execute a GraphQL mutation
  */
-export async function executeMutation<T = any>(
+export async function executeMutation<T = unknown>(
 	mutation: string,
-	variables?: Record<string, any>,
+	variables?: Record<string, unknown>,
 ): Promise<{ data: T | null; error: Error | null }> {
 	try {
-		const client = getGraphQLClient();
-		const result = await client.mutation(mutation, variables).toPromise();
+		const gqlClient = getGraphQLClient();
+		const result = await gqlClient.mutation(mutation, variables).toPromise();
 
 		if (result.error) {
 			console.error("[GraphQL] Mutation error:", result.error);
@@ -108,7 +128,10 @@ export async function executeMutation<T = any>(
 		return { data: result.data as T, error: null };
 	} catch (error) {
 		console.error("[GraphQL] Mutation exception:", error);
-		return { data: null, error: error as Error };
+		return {
+			data: null,
+			error: error instanceof Error ? error : new Error(String(error)),
+		};
 	}
 }
 
@@ -117,32 +140,38 @@ export async function executeMutation<T = any>(
  */
 export async function executeTypedQuery<A, I>(
 	query: string,
-	variables: Record<string, any>,
+	variables: Record<string, unknown>,
 	schema: Schema<A, I>,
 ): Promise<{ data: A | null; error: Error | null }> {
 	try {
-		const client = getGraphQLClient();
-		const result = await client.query(query, variables).toPromise();
+		const gqlClient = getGraphQLClient();
+		const result = await gqlClient.query(query, variables).toPromise();
 
 		if (result.error) {
 			console.error("[GraphQL] Query error:", result.error);
 			return { data: null, error: new Error(result.error.message) };
 		}
 
-		// Validate response with Effect Schema
 		try {
 			const validated = S.decodeSync(schema)(result.data);
 			return { data: validated, error: null };
-		} catch (validationError: any) {
+		} catch (validationError: unknown) {
 			console.error("[GraphQL] Response validation error:", validationError);
+			const msg =
+				validationError instanceof Error
+					? validationError.message
+					: String(validationError);
 			return {
 				data: null,
-				error: new Error(`Invalid response format: ${validationError.message}`),
+				error: new Error(`Invalid response format: ${msg}`),
 			};
 		}
 	} catch (error) {
 		console.error("[GraphQL] Query exception:", error);
-		return { data: null, error: error as Error };
+		return {
+			data: null,
+			error: error instanceof Error ? error : new Error(String(error)),
+		};
 	}
 }
 
@@ -151,31 +180,37 @@ export async function executeTypedQuery<A, I>(
  */
 export async function executeTypedMutation<A, I>(
 	mutation: string,
-	variables: Record<string, any>,
+	variables: Record<string, unknown>,
 	schema: Schema<A, I>,
 ): Promise<{ data: A | null; error: Error | null }> {
 	try {
-		const client = getGraphQLClient();
-		const result = await client.mutation(mutation, variables).toPromise();
+		const gqlClient = getGraphQLClient();
+		const result = await gqlClient.mutation(mutation, variables).toPromise();
 
 		if (result.error) {
 			console.error("[GraphQL] Mutation error:", result.error);
 			return { data: null, error: new Error(result.error.message) };
 		}
 
-		// Validate response with Effect Schema
 		try {
 			const validated = S.decodeSync(schema)(result.data);
 			return { data: validated, error: null };
-		} catch (validationError: any) {
+		} catch (validationError: unknown) {
 			console.error("[GraphQL] Response validation error:", validationError);
+			const msg =
+				validationError instanceof Error
+					? validationError.message
+					: String(validationError);
 			return {
 				data: null,
-				error: new Error(`Invalid response format: ${validationError.message}`),
+				error: new Error(`Invalid response format: ${msg}`),
 			};
 		}
 	} catch (error) {
 		console.error("[GraphQL] Mutation exception:", error);
-		return { data: null, error: error as Error };
+		return {
+			data: null,
+			error: error instanceof Error ? error : new Error(String(error)),
+		};
 	}
 }

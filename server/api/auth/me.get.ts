@@ -39,7 +39,15 @@ export default defineEventHandler(async (event) => {
 		}
 
 		// Get user details
-		const { data, error: queryError } = await executeQuery(GET_USER_BY_ID, {
+		const { data, error: queryError } = await executeQuery<{
+			users: Array<{
+				id: string;
+				email: string;
+				display_name: string | null;
+				photo_url: string | null;
+				created_at: string;
+			}>;
+		}>(GET_USER_BY_ID, {
 			userId: userId,
 		});
 
