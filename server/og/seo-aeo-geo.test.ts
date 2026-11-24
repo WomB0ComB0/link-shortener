@@ -44,7 +44,7 @@ describe("SEO / AEO / GEO artifacts & Schema.org structured data", () => {
 
 		expect(llmsFull).toContain("Nuxt 4");
 		expect(llmsFull).toContain("Apache License 2.0");
-		expect(llmsFull).toContain("6-Stage Synchronous URL Security Pipeline");
+		expect(llmsFull).toContain("9-Stage Synchronous URL Security & OSINT Pipeline");
 		expect(llmsFull).toContain("ip_address: null");
 	});
 

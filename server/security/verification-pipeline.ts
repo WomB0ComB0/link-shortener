@@ -15,16 +15,36 @@
  */
 
 /**
- * Link Verification Pipeline (Strict 6-Stage Engine)
- * Two-phase SSRF-gated orchestrator:
- *   Phase 1 (SSRF Gate): URL validation + DNS private-IP/rebinding check
- *   Phase 2 (Active Inspection): SSL/TLS + Redirect chain + Phishing + Malware
- *   Phase 3 (Final Target Re-scan): Phishing + Malware + Pattern checks on final redirect URL
+ * Link Verification Pipeline (Strict 9-Stage Security & OSINT Engine)
+ * Three-phase SSRF-gated orchestrator inspired by lissy93/web-check:
+ *   Phase 1 (SSRF Gate):
+ *     1. URL validation (syntax, protocol, port, credentials, SSRF/IP, nested schemes)
+ *     2. DNS resolution & private-IP / CNAME-cloaking rebinding check
+ *   Phase 2 (Active Network, Threat Intel & Domain OSINT — parallel):
+ *     3. SSL/TLS certificate & cipher suite inspection
+ *     4. Multi-hop SSRF-safe redirect chain & downgrade inspection
+ *     5. Phishing, homograph & brand-impersonation heuristics
+ *     6. Malware scanning (Google Safe Browsing + executable payload patterns)
+ *     7. Zero-key Threat Intel DNSBLs (Cloudflare Security 1.1.1.2, Quad9, optional URLhaus)
+ *     8. Domain Intelligence (RDAP age & registry suspension, DNSSEC, CAA, SPF/DMARC)
+ *   Phase 3 (Final Target Content & Redirect Re-Inspection):
+ *     9. HTTP Security Headers (HSTS/CSP/XFO/XCTO/grade A+-F), drive-by Content-Type/
+ *        Content-Disposition blocking, and bounded 16 KiB HTML meta-refresh/mixed-content
+ *        cloaking inspection — plus phishing/malware/threat-intel re-scan on final targets.
  */
 
 import * as S from "@effect/schema/Schema";
 import NodeCache from "node-cache";
 import { checkDns, DnsCheckResult } from "./dns-checker";
+import {
+	checkDomainIntel,
+	clearDomainIntelCache,
+	DomainIntelCheckResult,
+} from "./domain-intel-checker";
+import {
+	checkHttpSecurity,
+	HttpSecurityCheckResult,
+} from "./http-security-checker";
 import {
 	checkMalware,
 	checkSuspiciousPatterns,
@@ -33,6 +53,11 @@ import {
 import { detectPhishing, PhishingCheckResult } from "./phishing-detector";
 import { checkRedirects, RedirectCheckResult } from "./redirect-checker";
 import { checkSsl, SslCheckResult } from "./ssl-checker";
+import {
+	checkThreatIntel,
+	clearThreatIntelCache,
+	ThreatIntelCheckResult,
+} from "./threat-intel-checker";
 import { UrlValidationResult, validateUrl } from "./url-validator";
 
 // Cache verification results for 1 hour
@@ -48,6 +73,9 @@ export class VerificationOptions extends S.Class<VerificationOptions>(
 	skipRedirects: S.optional(S.Boolean),
 	skipMalware: S.optional(S.Boolean),
 	skipPhishing: S.optional(S.Boolean),
+	skipThreatIntel: S.optional(S.Boolean),
+	skipDomainIntel: S.optional(S.Boolean),
+	skipHttpSecurity: S.optional(S.Boolean),
 	timeout: S.optional(S.Number),
 }) {}
 
@@ -80,6 +108,9 @@ export class VerificationChecks extends S.Class<VerificationChecks>(
 	redirectCheck: S.instanceOf(RedirectCheckResult),
 	phishingCheck: S.instanceOf(PhishingCheckResult),
 	malwareCheck: S.instanceOf(MalwareCheckResult),
+	threatIntelCheck: S.instanceOf(ThreatIntelCheckResult),
+	domainIntelCheck: S.instanceOf(DomainIntelCheckResult),
+	httpSecurityCheck: S.instanceOf(HttpSecurityCheckResult),
 }) {}
 
 // Effect Schema for link verification result
@@ -97,6 +128,9 @@ export class LinkVerificationResult extends S.Class<LinkVerificationResult>(
 		redirectCheck: S.Any,
 		phishingCheck: S.Any,
 		malwareCheck: S.Any,
+		threatIntelCheck: S.Any,
+		domainIntelCheck: S.Any,
+		httpSecurityCheck: S.Any,
 	}),
 	summary: S.Struct({
 		totalErrors: S.Number,
@@ -115,19 +149,22 @@ function buildCacheKey(
 	url: string,
 	options: Partial<VerificationOptions>,
 ): string {
-	// Include skip flags in cache key so skipped checks can NEVER poison full verification results
+	// Include all skip flags in cache key so skipped checks can NEVER poison full verification results
 	const flags = [
 		options.skipDns ? "noDns" : "dns",
 		options.skipSsl ? "noSsl" : "ssl",
 		options.skipRedirects ? "noRedir" : "redir",
 		options.skipPhishing ? "noPhish" : "phish",
 		options.skipMalware ? "noMal" : "mal",
+		options.skipThreatIntel ? "noThreat" : "threat",
+		options.skipDomainIntel ? "noDom" : "dom",
+		options.skipHttpSecurity ? "noHttp" : "http",
 	].join("|");
 	return `${flags}::${url}`;
 }
 
 /**
- * Comprehensive 6-stage strict link verification pipeline
+ * Comprehensive 9-stage strict link verification & OSINT pipeline
  */
 export async function verifyLink(
 	url: string,
@@ -166,43 +203,84 @@ export async function verifyLink(
 				);
 
 	const passedSsrfGate = urlValidation.isValid && dnsCheck.isValid;
+	const domainResolvedInDns =
+		!options.skipDns && (dnsCheck.hasARecord || dnsCheck.hasAAAARecord);
 
 	// ================================================================
-	// PHASE 2: Active Network & Threat Intelligence Inspection
+	// PHASE 2: Active Network, Threat Intelligence & Domain OSINT Inspection
 	// Only open outbound TLS/HTTP connections if Phase 1 passed the SSRF gate
 	// ================================================================
 	const timeoutMs = options.timeout ?? 8000;
+	const osintTimeoutMs = Math.min(timeoutMs, 2500);
 
-	const [sslCheck, redirectCheck, initialPhishingCheck, initialMalwareCheck] =
-		await Promise.all([
-			options.skipSsl
-				? createSkippedSslResult(url)
-				: passedSsrfGate
-					? checkSsl(url, timeoutMs)
-					: createBlockedSslResult(url),
-			options.skipRedirects
-				? createSkippedRedirectResult(url)
-				: passedSsrfGate
-					? checkRedirects(url, { timeout: Math.min(timeoutMs, 5000) })
-					: createBlockedRedirectResult(url),
-			options.skipPhishing
-				? createSkippedPhishingResult(url)
-				: detectPhishing(url),
-			options.skipMalware
-				? createSkippedMalwareResult(url)
-				: passedSsrfGate
-					? checkMalware(url)
-					: createBlockedMalwareResult(url),
-		]);
+	const [
+		sslCheck,
+		redirectCheck,
+		initialPhishingCheck,
+		initialMalwareCheck,
+		initialThreatIntelCheck,
+		domainIntelCheck,
+	] = await Promise.all([
+		options.skipSsl
+			? createSkippedSslResult(url)
+			: passedSsrfGate
+				? checkSsl(url, timeoutMs)
+				: createBlockedSslResult(url),
+		options.skipRedirects
+			? createSkippedRedirectResult(url)
+			: passedSsrfGate
+				? checkRedirects(url, { timeout: Math.min(timeoutMs, 5000) })
+				: createBlockedRedirectResult(url),
+		options.skipPhishing
+			? createSkippedPhishingResult(url)
+			: detectPhishing(url),
+		options.skipMalware
+			? createSkippedMalwareResult(url)
+			: passedSsrfGate
+				? checkMalware(url)
+				: createBlockedMalwareResult(url),
+		options.skipThreatIntel
+			? createSkippedThreatIntelResult(url, hostname)
+			: passedSsrfGate
+				? checkThreatIntel(url, {
+						timeoutMs: osintTimeoutMs,
+						domainResolvedInDns,
+						skipCache: options.skipCache,
+					})
+				: createBlockedThreatIntelResult(url, hostname),
+		options.skipDomainIntel
+			? createSkippedDomainIntelResult(hostname)
+			: passedSsrfGate && hostname
+				? checkDomainIntel(hostname, {
+						timeoutMs: osintTimeoutMs,
+						skipCache: options.skipCache,
+					})
+				: createBlockedDomainIntelResult(hostname),
+	]);
 
 	// ================================================================
-	// PHASE 3: Re-inspect final redirect destination if URL redirected
-	// Prevents redirect laundering (clean URL -> phishing/malware landing page)
+	// PHASE 3: Final Destination HTTP Security, Content & Redirect Re-Inspection
+	// Inspects the final resolved target for security headers, drive-by executable
+	// payloads, HTML meta-refresh cloaking, and redirect-laundered phishing/malware.
 	// ================================================================
 	let phishingCheck = initialPhishingCheck;
 	let malwareCheck = initialMalwareCheck;
+	let threatIntelCheck = initialThreatIntelCheck;
 	const finalUrl = redirectCheck.finalUrl;
 
+	const httpSecurityCheck = options.skipHttpSecurity
+		? createSkippedHttpSecurityResult(finalUrl || url)
+		: passedSsrfGate && redirectCheck.isValid
+			? await checkHttpSecurity(finalUrl || url, Math.min(timeoutMs, 4000))
+			: createBlockedHttpSecurityResult(
+					finalUrl || url,
+					!passedSsrfGate
+						? "HTTP security inspection aborted by SSRF/DNS security gate"
+						: "HTTP security inspection aborted due to blocked redirect chain",
+				);
+
+	// Collect any distinct downstream targets (HTTP redirect finalUrl and/or HTML meta-refresh URL)
+	const downstreamTargets: Array<{ targetUrl: string; label: string }> = [];
 	if (
 		passedSsrfGate &&
 		redirectCheck.isValid &&
@@ -210,60 +288,124 @@ export async function verifyLink(
 		finalUrl &&
 		finalUrl !== url
 	) {
-		const [finalPhishing, finalMalware] = await Promise.all([
-			options.skipPhishing ? null : detectPhishing(finalUrl),
-			options.skipMalware ? null : checkMalware(finalUrl),
+		downstreamTargets.push({
+			targetUrl: finalUrl,
+			label: "Final redirect target",
+		});
+	}
+	if (
+		passedSsrfGate &&
+		httpSecurityCheck.isValid &&
+		httpSecurityCheck.metaRefreshUrl &&
+		httpSecurityCheck.metaRefreshUrl !== url &&
+		httpSecurityCheck.metaRefreshUrl !== finalUrl
+	) {
+		downstreamTargets.push({
+			targetUrl: httpSecurityCheck.metaRefreshUrl,
+			label: "HTML meta-refresh target",
+		});
+	}
+
+	for (const { targetUrl, label } of downstreamTargets) {
+		const [targetPhishing, targetMalware, targetThreatIntel] = await Promise.all([
+			options.skipPhishing ? null : detectPhishing(targetUrl),
+			options.skipMalware ? null : checkMalware(targetUrl),
+			options.skipThreatIntel
+				? null
+				: checkThreatIntel(targetUrl, {
+						timeoutMs: osintTimeoutMs,
+						domainResolvedInDns: true,
+						skipCache: options.skipCache,
+					}),
 		]);
 
-		if (finalPhishing && finalPhishing.suspicionScore > phishingCheck.suspicionScore) {
+		if (
+			targetPhishing &&
+			targetPhishing.suspicionScore > phishingCheck.suspicionScore
+		) {
 			phishingCheck = new PhishingCheckResult({
-				isPhishing: phishingCheck.isPhishing || finalPhishing.isPhishing,
+				isPhishing: phishingCheck.isPhishing || targetPhishing.isPhishing,
 				suspicionScore: Math.max(
 					phishingCheck.suspicionScore,
-					finalPhishing.suspicionScore,
+					targetPhishing.suspicionScore,
 				),
-				url: finalUrl,
-				domain: finalPhishing.domain,
+				url: targetUrl,
+				domain: targetPhishing.domain,
 				reasons: Array.from(
 					new Set([
 						...phishingCheck.reasons,
-						...finalPhishing.reasons.map((r) => `Final redirect target: ${r}`),
+						...targetPhishing.reasons.map((r) => `${label}: ${r}`),
 					]),
 				),
 				warnings: Array.from(
-					new Set([...phishingCheck.warnings, ...finalPhishing.warnings]),
+					new Set([...phishingCheck.warnings, ...targetPhishing.warnings]),
 				),
 			});
 		}
 
-		if (finalMalware && (!finalMalware.isSafe || finalMalware.threats.length > 0)) {
+		if (
+			targetMalware &&
+			(!targetMalware.isSafe || targetMalware.threats.length > 0)
+		) {
 			malwareCheck = new MalwareCheckResult({
-				isSafe: malwareCheck.isSafe && finalMalware.isSafe,
-				url: finalUrl,
-				threats: [...malwareCheck.threats, ...finalMalware.threats],
+				isSafe: malwareCheck.isSafe && targetMalware.isSafe,
+				url: targetUrl,
+				threats: [...malwareCheck.threats, ...targetMalware.threats],
 				checkedBy: Array.from(
-					new Set([...malwareCheck.checkedBy, ...finalMalware.checkedBy]),
+					new Set([...malwareCheck.checkedBy, ...targetMalware.checkedBy]),
 				),
-				errors: [...malwareCheck.errors, ...finalMalware.errors],
+				errors: [...malwareCheck.errors, ...targetMalware.errors],
 				warnings: Array.from(
-					new Set([...malwareCheck.warnings, ...finalMalware.warnings]),
+					new Set([...malwareCheck.warnings, ...targetMalware.warnings]),
 				),
-				checkTime: malwareCheck.checkTime + finalMalware.checkTime,
+				checkTime: malwareCheck.checkTime + targetMalware.checkTime,
+			});
+		}
+
+		if (targetThreatIntel && !targetThreatIntel.isSafe) {
+			threatIntelCheck = new ThreatIntelCheckResult({
+				isSafe: false,
+				url: targetUrl,
+				hostname: targetThreatIntel.hostname,
+				checkedProviders: Array.from(
+					new Set([
+						...threatIntelCheck.checkedProviders,
+						...targetThreatIntel.checkedProviders,
+					]),
+				),
+				blockedBy: [
+					...threatIntelCheck.blockedBy,
+					...targetThreatIntel.blockedBy.map((hit) => ({
+						...hit,
+						reason: `${label}: ${hit.reason}`,
+					})),
+				],
+				errors: [
+					...threatIntelCheck.errors,
+					...targetThreatIntel.errors.map((e) => `${label}: ${e}`),
+				],
+				warnings: Array.from(
+					new Set([
+						...threatIntelCheck.warnings,
+						...targetThreatIntel.warnings,
+					]),
+				),
+				checkTime: threatIntelCheck.checkTime + targetThreatIntel.checkTime,
 			});
 		}
 	}
 
-	// Check suspicious executable/script patterns on both initial and final URL
+	// Check suspicious executable/script patterns on initial URL and all downstream targets
 	const patternCheckInitial = checkSuspiciousPatterns(url);
-	const patternCheckFinal =
-		finalUrl && finalUrl !== url
-			? checkSuspiciousPatterns(finalUrl)
-			: { suspicious: false, patterns: [] as string[] };
+	const downstreamPatternHits: string[] = [];
+	for (const { targetUrl, label } of downstreamTargets) {
+		const check = checkSuspiciousPatterns(targetUrl);
+		for (const p of check.patterns) {
+			downstreamPatternHits.push(`${label}: ${p}`);
+		}
+	}
 	const suspiciousPatterns = Array.from(
-		new Set([
-			...patternCheckInitial.patterns,
-			...patternCheckFinal.patterns.map((p) => `Final redirect target: ${p}`),
-		]),
+		new Set([...patternCheckInitial.patterns, ...downstreamPatternHits]),
 	);
 
 	const requireSafeBrowsing =
@@ -282,6 +424,9 @@ export async function verifyLink(
 		...sslCheck.errors,
 		...redirectCheck.errors,
 		...(malwareHardFailed ? malwareCheck.errors : []),
+		...threatIntelCheck.errors,
+		...domainIntelCheck.errors,
+		...httpSecurityCheck.errors,
 	];
 
 	const allWarnings = [
@@ -291,6 +436,9 @@ export async function verifyLink(
 		...redirectCheck.warnings,
 		...phishingCheck.warnings,
 		...malwareCheck.warnings,
+		...threatIntelCheck.warnings,
+		...domainIntelCheck.warnings,
+		...httpSecurityCheck.warnings,
 		...(!malwareHardFailed && hasExternalMalwareFeedError
 			? malwareCheck.errors.map(
 					(err) => `External threat feed unavailable (${err})`,
@@ -343,11 +491,29 @@ export async function verifyLink(
 		);
 	}
 
+	if (!threatIntelCheck.isSafe) {
+		for (const hit of threatIntelCheck.blockedBy) {
+			criticalIssues.push(`${hit.provider}: ${hit.reason}`);
+		}
+	}
+
+	if (!domainIntelCheck.isValid && passedSsrfGate) {
+		criticalIssues.push(
+			`Domain intelligence check failed: ${domainIntelCheck.errors.join("; ")}`,
+		);
+	}
+
+	if (!httpSecurityCheck.isValid && passedSsrfGate && redirectCheck.isValid) {
+		criticalIssues.push(
+			`HTTP content security check failed: ${httpSecurityCheck.errors.join("; ")}`,
+		);
+	}
+
 	if (suspiciousPatterns.length > 0) {
 		criticalIssues.push(...suspiciousPatterns);
 	}
 
-	// Calculate strict overall risk score (hard security failures always escalate to critical >= 80)
+	// Calculate strict overall risk score (hard security failures always escalate to critical >= 85)
 	const riskScore = calculateRiskScore({
 		urlValidation,
 		dnsCheck,
@@ -355,6 +521,9 @@ export async function verifyLink(
 		redirectCheck,
 		phishingCheck,
 		malwareCheck,
+		threatIntelCheck,
+		domainIntelCheck,
+		httpSecurityCheck,
 		malwareHardFailed,
 		hasExternalMalwareFeedError,
 		suspiciousPatterns,
@@ -370,6 +539,9 @@ export async function verifyLink(
 		redirectCheck,
 		phishingCheck,
 		malwareCheck,
+		threatIntelCheck,
+		domainIntelCheck,
+		httpSecurityCheck,
 	});
 
 	// Strict verification gate: zero errors, zero critical issues, and risk below medium/high threshold
@@ -388,6 +560,9 @@ export async function verifyLink(
 			redirectCheck,
 			phishingCheck,
 			malwareCheck,
+			threatIntelCheck,
+			domainIntelCheck,
+			httpSecurityCheck,
 		},
 		summary: {
 			totalErrors: allErrors.length,
@@ -418,6 +593,9 @@ function calculateRiskScore(checks: {
 	redirectCheck: RedirectCheckResult;
 	phishingCheck: PhishingCheckResult;
 	malwareCheck: MalwareCheckResult;
+	threatIntelCheck: ThreatIntelCheckResult;
+	domainIntelCheck: DomainIntelCheckResult;
+	httpSecurityCheck: HttpSecurityCheckResult;
 	malwareHardFailed: boolean;
 	hasExternalMalwareFeedError: boolean;
 	suspiciousPatterns: string[];
@@ -435,7 +613,25 @@ function calculateRiskScore(checks: {
 	} else if (checks.hasExternalMalwareFeedError) {
 		score += 10;
 	}
+	if (!checks.threatIntelCheck.isSafe) score += 45;
+	if (!checks.domainIntelCheck.isValid) score += 35;
+	if (!checks.httpSecurityCheck.isValid) score += 40;
 	if (checks.suspiciousPatterns.length > 0) score += 35;
+
+	// Soft OSINT & HTTP content risk adjustments (inform risk without falsely blocking normal sites)
+	if (checks.domainIntelCheck.domainAgeDays !== null) {
+		if (checks.domainIntelCheck.domainAgeDays < 7) {
+			score += 15;
+		} else if (checks.domainIntelCheck.domainAgeDays < 30) {
+			score += 8;
+		}
+	}
+	if (checks.domainIntelCheck.isSuspended && checks.domainIntelCheck.isValid) {
+		// clientHold (registrar hold)
+		score += 15;
+	}
+	if (checks.httpSecurityCheck.hasInsecureFormAction) score += 10;
+	if (checks.httpSecurityCheck.hasMixedContent) score += 5;
 
 	// Warning penalties (2 points per warning, max 16)
 	const totalWarnings =
@@ -444,7 +640,10 @@ function calculateRiskScore(checks: {
 		checks.sslCheck.warnings.length +
 		checks.redirectCheck.warnings.length +
 		checks.phishingCheck.warnings.length +
-		checks.malwareCheck.warnings.length;
+		checks.malwareCheck.warnings.length +
+		checks.threatIntelCheck.warnings.length +
+		checks.domainIntelCheck.warnings.length +
+		checks.httpSecurityCheck.warnings.length;
 	score += Math.min(totalWarnings * 2, 16);
 
 	// Hard-block floor: any confirmed critical threat MUST score >= 85 (critical)
@@ -455,6 +654,9 @@ function calculateRiskScore(checks: {
 		!checks.redirectCheck.isValid ||
 		checks.phishingCheck.isPhishing ||
 		checks.malwareHardFailed ||
+		!checks.threatIntelCheck.isSafe ||
+		!checks.domainIntelCheck.isValid ||
+		!checks.httpSecurityCheck.isValid ||
 		checks.suspiciousPatterns.some(
 			(p) =>
 				p.includes("executable extension") ||
@@ -493,6 +695,9 @@ function generateRecommendations(checks: {
 	redirectCheck: RedirectCheckResult;
 	phishingCheck: PhishingCheckResult;
 	malwareCheck: MalwareCheckResult;
+	threatIntelCheck: ThreatIntelCheckResult;
+	domainIntelCheck: DomainIntelCheckResult;
+	httpSecurityCheck: HttpSecurityCheckResult;
 }): string[] {
 	const recommendations: string[] = [];
 
@@ -503,6 +708,15 @@ function generateRecommendations(checks: {
 	if (!checks.dnsCheck.hasMxRecord && checks.dnsCheck.hasARecord) {
 		recommendations.push(
 			"Domain has no email records - may be newly registered",
+		);
+	}
+
+	if (
+		checks.domainIntelCheck.domainAgeDays !== null &&
+		checks.domainIntelCheck.domainAgeDays < 30
+	) {
+		recommendations.push(
+			`Domain is only ${checks.domainIntelCheck.domainAgeDays} day(s) old - verify ownership before sharing`,
 		);
 	}
 
@@ -521,6 +735,27 @@ function generateRecommendations(checks: {
 		);
 	}
 
+	if (checks.httpSecurityCheck.metaRefreshUrl) {
+		recommendations.push(
+			`Destination uses an HTML meta-refresh redirect to ${checks.httpSecurityCheck.metaRefreshUrl} - prefer linking directly`,
+		);
+	}
+
+	if (checks.httpSecurityCheck.hasInsecureFormAction) {
+		recommendations.push(
+			"Destination page submits forms over insecure HTTP - avoid entering credentials",
+		);
+	}
+
+	if (
+		checks.httpSecurityCheck.securityGrade === "D" ||
+		checks.httpSecurityCheck.securityGrade === "F"
+	) {
+		recommendations.push(
+			`Destination HTTP security headers scored ${checks.httpSecurityCheck.securityGrade} (${checks.httpSecurityCheck.headerScore}/100) - missing HSTS/CSP/clickjacking headers`,
+		);
+	}
+
 	if (checks.phishingCheck.suspicionScore > 30) {
 		recommendations.push(
 			"URL shows signs of phishing - verify authenticity before sharing",
@@ -533,7 +768,10 @@ function generateRecommendations(checks: {
 		);
 	}
 
-	if (checks.malwareCheck.threats.length > 0) {
+	if (
+		checks.malwareCheck.threats.length > 0 ||
+		!checks.threatIntelCheck.isSafe
+	) {
 		recommendations.push(
 			"DO NOT SHARE - URL flagged as malicious by security providers",
 		);
@@ -670,11 +908,158 @@ function createBlockedMalwareResult(url: string): MalwareCheckResult {
 	});
 }
 
+function createSkippedThreatIntelResult(
+	url: string,
+	hostname: string,
+): ThreatIntelCheckResult {
+	return new ThreatIntelCheckResult({
+		isSafe: true,
+		url,
+		hostname,
+		checkedProviders: [],
+		blockedBy: [],
+		errors: [],
+		warnings: ["Threat intelligence check skipped"],
+		checkTime: 0,
+	});
+}
+
+function createBlockedThreatIntelResult(
+	url: string,
+	hostname: string,
+): ThreatIntelCheckResult {
+	return new ThreatIntelCheckResult({
+		isSafe: true,
+		url,
+		hostname,
+		checkedProviders: [],
+		blockedBy: [],
+		errors: [],
+		warnings: [
+			"Threat intelligence check aborted by SSRF/DNS security gate",
+		],
+		checkTime: 0,
+	});
+}
+
+function createSkippedDomainIntelResult(
+	hostname: string,
+): DomainIntelCheckResult {
+	return new DomainIntelCheckResult({
+		isValid: true,
+		domain: hostname,
+		registeredAt: null,
+		domainAgeDays: null,
+		registrar: null,
+		statuses: [],
+		isSuspended: false,
+		isNewlyRegistered: false,
+		dnssecEnabled: null,
+		hasCaaRecord: false,
+		caaIssuers: [],
+		hasSpf: false,
+		hasDmarc: false,
+		dmarcPolicy: null,
+		errors: [],
+		warnings: ["Domain intelligence check skipped"],
+		checkTime: 0,
+	});
+}
+
+function createBlockedDomainIntelResult(
+	hostname: string,
+): DomainIntelCheckResult {
+	return new DomainIntelCheckResult({
+		isValid: true,
+		domain: hostname,
+		registeredAt: null,
+		domainAgeDays: null,
+		registrar: null,
+		statuses: [],
+		isSuspended: false,
+		isNewlyRegistered: false,
+		dnssecEnabled: null,
+		hasCaaRecord: false,
+		caaIssuers: [],
+		hasSpf: false,
+		hasDmarc: false,
+		dmarcPolicy: null,
+		errors: [],
+		warnings: ["Domain intelligence check aborted by SSRF/DNS security gate"],
+		checkTime: 0,
+	});
+}
+
+function createSkippedHttpSecurityResult(url: string): HttpSecurityCheckResult {
+	return new HttpSecurityCheckResult({
+		isValid: true,
+		url,
+		statusCode: null,
+		contentType: null,
+		contentDispositionFilename: null,
+		securityGrade: "N/A",
+		headerScore: 0,
+		headers: {
+			strictTransportSecurity: false,
+			hstsMaxAge: null,
+			hstsIncludeSubDomains: false,
+			hstsPreload: false,
+			contentSecurityPolicy: false,
+			xFrameOptions: false,
+			xContentTypeOptions: false,
+			referrerPolicy: false,
+			permissionsPolicy: false,
+			crossOriginOpenerPolicy: false,
+		},
+		metaRefreshUrl: null,
+		hasMixedContent: false,
+		hasInsecureFormAction: false,
+		errors: [],
+		warnings: ["HTTP security check skipped"],
+		checkTime: 0,
+	});
+}
+
+function createBlockedHttpSecurityResult(
+	url: string,
+	reason: string,
+): HttpSecurityCheckResult {
+	return new HttpSecurityCheckResult({
+		isValid: false,
+		url,
+		statusCode: null,
+		contentType: null,
+		contentDispositionFilename: null,
+		securityGrade: "N/A",
+		headerScore: 0,
+		headers: {
+			strictTransportSecurity: false,
+			hstsMaxAge: null,
+			hstsIncludeSubDomains: false,
+			hstsPreload: false,
+			contentSecurityPolicy: false,
+			xFrameOptions: false,
+			xContentTypeOptions: false,
+			referrerPolicy: false,
+			permissionsPolicy: false,
+			crossOriginOpenerPolicy: false,
+		},
+		metaRefreshUrl: null,
+		hasMixedContent: false,
+		hasInsecureFormAction: false,
+		errors: [reason],
+		warnings: [],
+		checkTime: 0,
+	});
+}
+
 /**
- * Clear verification cache
+ * Clear verification cache (and sub-checker OSINT caches)
  */
 export function clearVerificationCache() {
 	verificationCache.flushAll();
+	clearThreatIntelCache();
+	clearDomainIntelCache();
 }
 
 /**

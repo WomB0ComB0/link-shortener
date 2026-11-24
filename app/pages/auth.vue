@@ -38,9 +38,9 @@
 								<UIcon name="i-heroicons-shield-check" class="size-4" aria-hidden="true" />
 							</span>
 							<div class="min-w-0">
-								<p class="tile-label text-foreground">6-stage strict URL verification</p>
+								<p class="tile-label text-foreground">9-stage strict URL verification</p>
 								<p class="mt-0.5 tile-meta text-muted-foreground">
-									SSRF, DNS, SSL, redirect-chain, phishing &amp; malware checks
+									SSRF, DNS, SSL, redirects, phishing, malware, DNSBL, RDAP &amp; HTTP headers
 								</p>
 							</div>
 						</li>

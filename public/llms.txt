@@ -2,7 +2,7 @@
 
 > High-throughput, security-verified URL shortener and click analytics platform at https://links.mikeodnis.dev, part of Mike Odnis's Live Console ecosystem (mikeodnis.dev).
 
-Links shortens URLs into cryptographically unbiased 7-character Base62 codes (or custom aliases), verifies every destination through a 6-stage security pipeline before creation or edit, serves single-hop `302 Found` redirects through a multi-tier L1 LRU + Upstash Redis cache-aside layer, and records privacy-first batched click analytics without storing raw IP addresses.
+Links shortens URLs into cryptographically unbiased 7-character Base62 codes (or custom aliases), verifies every destination through a 9-stage security and OSINT pipeline before creation or edit, serves single-hop `302 Found` redirects through a multi-tier L1 LRU + Upstash Redis cache-aside layer, and records privacy-first batched click analytics without storing raw IP addresses.
 
 ## Public Pages
 
@@ -14,7 +14,7 @@ Links shortens URLs into cryptographically unbiased 7-character Base62 codes (or
 
 - [Full LLM Reference](https://links.mikeodnis.dev/llms-full.txt): Complete architecture, API contracts, security pipeline, privacy guarantees, and SLOs.
 - [Operational Health & Telemetry](https://links.mikeodnis.dev/api/health): Readiness probes (Hasura + Redis) and live redirect latency (`p50`/`p95`/`p99`) & cache-hit snapshot.
-- [URL Security Verifier](https://links.mikeodnis.dev/api/security/verify): 6-stage URL safety verification (syntax/SSRF, DNS, SSL, redirect chains, phishing heuristics, malware).
+- [URL Security Verifier](https://links.mikeodnis.dev/api/security/verify): 9-stage URL safety & OSINT verification (syntax/SSRF, DNS, SSL, redirect chains, phishing heuristics, malware, Cloudflare/Quad9 threat DNSBLs, RDAP/DNSSEC/CAA/DMARC, HTTP security headers & HTML cloaking).
 - [Dynamic OpenGraph Card API](https://links.mikeodnis.dev/api/og): Live Console `1200x630` PNG social preview cards.
 - [PWA Manifest](https://links.mikeodnis.dev/manifest.webmanifest): Installable standalone web app metadata with `share_target` support.
 

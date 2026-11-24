@@ -381,7 +381,7 @@
 					</div>
 				</div>
 
-				<!-- 6-Stage Strict Security Verification Pipeline Tile -->
+				<!-- 9-Stage Strict Security & OSINT Verification Pipeline Tile -->
 				<div class="rounded-tile border border-hairline bg-surface-1 p-5 shadow-tile">
 					<div class="flex items-center justify-between gap-2">
 						<span class="tile-label text-muted-foreground">Security pipeline</span>
@@ -390,9 +390,13 @@
 							class="mono-token"
 							:class="lastVerification.isVerified ? 'text-live' : 'text-down'"
 						>
-							Risk {{ lastVerification.riskScore }}/100
+							Risk {{ lastVerification.riskScore }}/100<template
+								v-if="lastVerification.securityGrade && lastVerification.securityGrade !== 'N/A'"
+							>
+								· Grade {{ lastVerification.securityGrade }}
+							</template>
 						</span>
-						<span v-else class="mono-token text-faint">6 checks</span>
+						<span v-else class="mono-token text-faint">9 checks</span>
 					</div>
 					<p class="mt-1.5 tile-sub text-muted-foreground">
 						Strict SSRF-gated inspection runs before any redirect is minted.
@@ -470,9 +474,15 @@ interface VerificationSummaryView {
 	readonly isVerified: boolean;
 	readonly overallRisk: string;
 	readonly riskScore: number;
+	readonly securityGrade?: string;
+	readonly domainAgeDays?: number | null;
 	readonly checks?: Record<
 		string,
-		{ readonly passed: boolean; readonly warnings: number }
+		{
+			readonly passed: boolean;
+			readonly warnings: number;
+			readonly grade?: string;
+		}
 	>;
 }
 
@@ -565,7 +575,10 @@ const pipelineChecks = computed<readonly PipelineCheckView[]>(() => {
 		{ id: "ssl", label: "SSL / TLS certificate" },
 		{ id: "redirects", label: "Redirect chain & hop guard" },
 		{ id: "phishing", label: "Phishing & homograph heuristics" },
-		{ id: "malware", label: "Malware & threat feeds" },
+		{ id: "malware", label: "Malware & payload heuristics" },
+		{ id: "threatIntel", label: "Threat intel DNSBL (CF / Quad9)" },
+		{ id: "domainIntel", label: "RDAP age, DNSSEC, CAA & DMARC" },
+		{ id: "httpSecurity", label: "HTTP headers & HTML cloaking" },
 	];
 
 	return checks.map((check) => {
@@ -595,7 +608,12 @@ const pipelineChecks = computed<readonly PipelineCheckView[]>(() => {
 					...check,
 					tone: "ongoing" as const,
 					pulse: false,
-					status: "Warning",
+					status:
+						check.id === "httpSecurity" &&
+						stageReport.grade &&
+						stageReport.grade !== "N/A"
+							? `Grade ${stageReport.grade}`
+							: "Warning",
 					statusClass: "text-ongoing",
 				};
 			}
@@ -603,7 +621,12 @@ const pipelineChecks = computed<readonly PipelineCheckView[]>(() => {
 				...check,
 				tone: "live" as const,
 				pulse: false,
-				status: "Verified",
+				status:
+					check.id === "httpSecurity" &&
+					stageReport.grade &&
+					stageReport.grade !== "N/A"
+						? `Grade ${stageReport.grade}`
+						: "Verified",
 				statusClass: "text-live",
 			};
 		}

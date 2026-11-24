@@ -87,6 +87,8 @@ function summarizeVerification(verification: LinkVerificationResult) {
 		isVerified: verification.isVerified,
 		overallRisk: verification.overallRisk,
 		riskScore: verification.riskScore,
+		securityGrade: verification.checks.httpSecurityCheck?.securityGrade ?? "N/A",
+		domainAgeDays: verification.checks.domainIntelCheck?.domainAgeDays ?? null,
 		criticalIssues: verification.summary.criticalIssues,
 		recommendations: verification.summary.recommendations,
 		finalUrl: verification.checks.redirectCheck?.finalUrl ?? verification.url,
@@ -120,6 +122,19 @@ function summarizeVerification(verification: LinkVerificationResult) {
 				warnings:
 					(verification.checks.malwareCheck?.warnings?.length ?? 0) +
 					(verification.checks.malwareCheck?.errors?.length ?? 0),
+			},
+			threatIntel: {
+				passed: verification.checks.threatIntelCheck?.isSafe ?? true,
+				warnings: verification.checks.threatIntelCheck?.warnings?.length ?? 0,
+			},
+			domainIntel: {
+				passed: verification.checks.domainIntelCheck?.isValid ?? true,
+				warnings: verification.checks.domainIntelCheck?.warnings?.length ?? 0,
+			},
+			httpSecurity: {
+				passed: verification.checks.httpSecurityCheck?.isValid ?? true,
+				warnings: verification.checks.httpSecurityCheck?.warnings?.length ?? 0,
+				grade: verification.checks.httpSecurityCheck?.securityGrade ?? "N/A",
 			},
 		},
 	};
@@ -175,7 +190,7 @@ export default defineEventHandler(async (event) => {
 	}
 
 	// ============================================
-	// STRICT 6-STAGE SECURITY VERIFICATION PIPELINE
+	// STRICT 9-STAGE SECURITY & OSINT VERIFICATION PIPELINE
 	// ============================================
 	const adminBypass = isValidAdminBypass(event);
 

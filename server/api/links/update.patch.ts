@@ -18,7 +18,7 @@
  * Owner-authorized link update endpoint (`PATCH /api/links/update`).
  *
  * Follows DB-first write + immediate cache invalidation:
- * - Re-runs the 6-stage `verifyLink` security pipeline when `originalUrl` changes.
+ * - Re-runs the 9-stage `verifyLink` security pipeline when `originalUrl` changes.
  * - Updates Hasura/Postgres first.
  * - Invalidates both L1 in-process LRU and L2 Redis keys (`short:<code>`).
  */

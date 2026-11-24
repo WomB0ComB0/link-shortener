@@ -5,18 +5,25 @@ import {
 	verifyLink,
 } from "./verification-pipeline";
 
-describe("link verification pipeline", () => {
+const SKIP_ALL_NETWORK = {
+	skipDns: true,
+	skipSsl: true,
+	skipRedirects: true,
+	skipPhishing: true,
+	skipMalware: true,
+	skipThreatIntel: true,
+	skipDomainIntel: true,
+	skipHttpSecurity: true,
+} as const;
+
+describe("link verification pipeline (9-stage security & OSINT engine)", () => {
 	beforeEach(() => {
 		clearVerificationCache();
 	});
 
-	it("runs deterministic skipped checks and produces a safe result", async () => {
+	it("runs deterministic skipped checks across all 9 stages and produces a safe result", async () => {
 		const result = await verifyLink("https://example.com", {
-			skipDns: true,
-			skipSsl: true,
-			skipRedirects: true,
-			skipPhishing: true,
-			skipMalware: true,
+			...SKIP_ALL_NETWORK,
 			skipCache: true,
 		});
 
@@ -28,15 +35,20 @@ describe("link verification pipeline", () => {
 		expect(result.checks.redirectCheck.warnings).toContain(
 			"Redirect check skipped",
 		);
+		expect(result.checks.threatIntelCheck.warnings).toContain(
+			"Threat intelligence check skipped",
+		);
+		expect(result.checks.domainIntelCheck.warnings).toContain(
+			"Domain intelligence check skipped",
+		);
+		expect(result.checks.httpSecurityCheck.warnings).toContain(
+			"HTTP security check skipped",
+		);
 	});
 
-	it("escalates malformed and SSRF URLs to critical and aborts active probes", async () => {
+	it("escalates malformed and SSRF URLs to critical and aborts all active probes", async () => {
 		const malformed = await verifyLink("not a URL", {
-			skipDns: true,
-			skipSsl: true,
-			skipRedirects: true,
-			skipPhishing: true,
-			skipMalware: true,
+			...SKIP_ALL_NETWORK,
 			skipCache: true,
 		});
 
@@ -56,16 +68,23 @@ describe("link verification pipeline", () => {
 		expect(ssrf.checks.redirectCheck.errors[0]).toMatch(
 			/SSRF\/DNS security gate/,
 		);
+		expect(ssrf.checks.httpSecurityCheck.errors[0]).toMatch(
+			/SSRF\/DNS security gate/,
+		);
+		expect(ssrf.checks.threatIntelCheck.warnings[0]).toMatch(
+			/SSRF\/DNS security gate/,
+		);
+		expect(ssrf.checks.domainIntelCheck.warnings[0]).toMatch(
+			/SSRF\/DNS security gate/,
+		);
 	});
 
 	it("escalates executable payloads and phishing URLs to critical", async () => {
 		const malwarePattern = await verifyLink(
 			"https://example.com/invoice.pdf.exe",
 			{
-				skipDns: true,
-				skipSsl: true,
-				skipRedirects: true,
-				skipMalware: true,
+				...SKIP_ALL_NETWORK,
+				skipPhishing: false,
 				skipCache: true,
 			},
 		);
@@ -75,15 +94,8 @@ describe("link verification pipeline", () => {
 	});
 
 	it("returns cached results for matching options without poisoning full checks", async () => {
-		const opts = {
-			skipDns: true,
-			skipSsl: true,
-			skipRedirects: true,
-			skipPhishing: true,
-			skipMalware: true,
-		};
-		const first = await verifyLink("https://cache.example", opts);
-		const second = await verifyLink("https://cache.example", opts);
+		const first = await verifyLink("https://cache.example", SKIP_ALL_NETWORK);
+		const second = await verifyLink("https://cache.example", SKIP_ALL_NETWORK);
 
 		expect(first.metadata.cached).toBe(false);
 		expect(second.metadata.cached).toBe(true);

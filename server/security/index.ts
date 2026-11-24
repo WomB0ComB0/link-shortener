@@ -25,6 +25,23 @@ export {
 	type DnsCheckResult,
 	domainExists,
 } from "./dns-checker";
+// Domain Intelligence (RDAP, DNSSEC, CAA, SPF/DMARC)
+export {
+	checkDomainIntel,
+	clearDomainIntelCache,
+	type DomainIntelCheckResult,
+	extractRegistrableDomain,
+} from "./domain-intel-checker";
+// HTTP Security Headers, Drive-By Payload & HTML Cloaking Inspection
+export {
+	checkHttpSecurity,
+	type HttpSecurityCheckResult,
+	inspectHtmlSnippet,
+	parseContentDispositionFilename,
+	parseHstsHeader,
+	type SecurityGrade,
+	scoreSecurityHeaders,
+} from "./http-security-checker";
 // Malware Scanning
 export {
 	checkMalware,
@@ -37,11 +54,24 @@ export {
 	detectPhishing,
 	type PhishingCheckResult,
 } from "./phishing-detector";
+// Redirect Chain Inspection
+export {
+	checkRedirects,
+	type RedirectCheckResult,
+} from "./redirect-checker";
 // SSL/TLS Verification
 export {
 	checkSsl,
 	type SslCheckResult,
 } from "./ssl-checker";
+// Zero-Key Threat Intelligence & DNSBL Blocklists
+export {
+	checkThreatIntel,
+	clearThreatIntelCache,
+	type ThreatIntelCheckResult,
+	type ThreatIntelHit,
+	type ThreatIntelOptions,
+} from "./threat-intel-checker";
 // URL Validation
 export {
 	isValidUrlFormat,
