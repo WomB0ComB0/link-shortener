@@ -69,7 +69,12 @@ describe("Dynamic OpenGraph cards & Live Console PWA manifest", () => {
 	it("renders valid 1200x630 PNGs for both SiteCard and dynamic PageCard", async () => {
 		clearOgRenderCache();
 
-		const sitePng = await renderOgPng(createSiteCard());
+		const siteCard = createSiteCard();
+		expect(
+			(siteCard.props.style as Record<string, unknown>).boxSizing,
+		).toBe("border-box");
+
+		const sitePng = await renderOgPng(siteCard);
 		expect(readPngDimensions(sitePng)).toEqual(OG_IMAGE_SIZE);
 		expect(sitePng.byteLength).toBeGreaterThan(5_000);
 

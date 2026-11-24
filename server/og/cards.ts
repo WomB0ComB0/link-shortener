@@ -45,7 +45,10 @@ function div(style: Style, children?: Child | readonly Child[]): SatoriNode {
 	return {
 		type: "div",
 		props: {
-			style,
+			style: {
+				boxSizing: "border-box",
+				...style,
+			},
 			...(filtered !== undefined ? { children: filtered } : {}),
 		},
 	};
