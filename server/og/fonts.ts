@@ -31,13 +31,35 @@ const FONT_FILES = [
 	{ file: "GeistMono-Regular.ttf", name: "Geist Mono", weight: 400 },
 ] as const;
 
-const bytesOf = (buffer: Buffer): ArrayBuffer =>
+const bytesOf = (buffer: Uint8Array): ArrayBuffer =>
 	buffer.buffer.slice(
 		buffer.byteOffset,
 		buffer.byteOffset + buffer.byteLength,
 	) as ArrayBuffer;
 
-async function readFontFile(filename: string): Promise<Buffer> {
+async function readFromNitroStorage(filename: string): Promise<Uint8Array | null> {
+	try {
+		const storageFn = (
+			globalThis as {
+				useStorage?: (
+					base?: string,
+				) => { getItemRaw: (key: string) => Promise<unknown> };
+			}
+		).useStorage;
+		if (typeof storageFn !== "function") return null;
+		const raw = await storageFn("assets:og-fonts").getItemRaw(filename);
+		if (raw instanceof Uint8Array) return raw;
+		if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+async function readFontFile(filename: string): Promise<Uint8Array> {
+	const bundled = await readFromNitroStorage(filename);
+	if (bundled) return bundled;
+
 	const candidates = [
 		join(process.cwd(), "server/og/fonts", filename),
 		join(process.cwd(), "public/assets/fonts/og", filename),

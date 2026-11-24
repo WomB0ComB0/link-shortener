@@ -179,6 +179,12 @@ export default defineNuxtConfig({
 				maxAge: 60 * 60 * 24 * 365,
 			},
 		],
+		serverAssets: [
+			{
+				baseName: "og-fonts",
+				dir: "./og/fonts",
+			},
+		],
 		prerender: {
 			crawlLinks: false,
 			routes: [],
