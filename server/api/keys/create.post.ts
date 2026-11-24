@@ -20,8 +20,8 @@
  * Create a new API key for the authenticated user
  */
 
-import { FetchHttpClient } from "@effect/platform";
 import { Effect, Schema } from "effect";
+import { FetchHttpClient } from "effect/http";
 import { post } from "../../../lib/fetcher";
 import { generateApiKey, hashApiKey, maskApiKey } from "../../utils/helpers";
 

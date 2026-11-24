@@ -19,8 +19,7 @@
  * Type-safe with Effect Schema and explicit per-request fetch timeouts.
  */
 
-import type { Schema } from "@effect/schema/Schema";
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import { Client, cacheExchange, fetchExchange } from "@urql/core";
 
 const DEFAULT_HASURA_TIMEOUT_MS = 2500;
@@ -141,7 +140,7 @@ export async function executeMutation<T = unknown>(
 export async function executeTypedQuery<A, I>(
 	query: string,
 	variables: Record<string, unknown>,
-	schema: Schema<A, I>,
+	schema: S.Codec<A, I>,
 ): Promise<{ data: A | null; error: Error | null }> {
 	try {
 		const gqlClient = getGraphQLClient();
@@ -181,7 +180,7 @@ export async function executeTypedQuery<A, I>(
 export async function executeTypedMutation<A, I>(
 	mutation: string,
 	variables: Record<string, unknown>,
-	schema: Schema<A, I>,
+	schema: S.Codec<A, I>,
 ): Promise<{ data: A | null; error: Error | null }> {
 	try {
 		const gqlClient = getGraphQLClient();

@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import type { ParseError } from "@effect/schema/ParseResult";
-import * as S from "@effect/schema/Schema";
-import { Effect, pipe } from "effect";
+import { Effect, pipe, Schema as S } from "effect";
 
 /**
  * Effect-based service for link shortening operations
@@ -179,21 +177,21 @@ export const createAndRecordLink = (params: {
 /**
  * Helper to convert ParseError to custom error type
  */
-export const mapParseError = (error: ParseError): ValidationError =>
+export const mapParseError = (error: S.SchemaError): ValidationError =>
 	new ValidationError(error.toString());
 
 /**
  * Safe decode with Effect error handling
  */
 export const safeDecode =
-	<A, I>(schema: S.Schema<A, I>) =>
+	<A, I>(schema: S.Codec<A, I>) =>
 	(input: I) =>
-		pipe(S.decode(schema)(input), Effect.mapError(mapParseError));
+		pipe(S.decodeEffect(schema)(input), Effect.mapError(mapParseError));
 
 /**
  * Safe encode with Effect error handling
  */
 export const safeEncode =
-	<A, I>(schema: S.Schema<A, I>) =>
+	<A, I>(schema: S.Codec<A, I>) =>
 	(value: A) =>
-		pipe(S.encode(schema)(value), Effect.mapError(mapParseError));
+		pipe(S.encodeEffect(schema)(value), Effect.mapError(mapParseError));

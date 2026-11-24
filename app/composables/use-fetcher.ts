@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { FetchHttpClient, type HttpClient } from "@effect/platform";
 import { Cause, Effect, Exit } from "effect";
+import { FetchHttpClient, type HttpClient } from "effect/http";
 import type { FetcherOptions } from "../../lib/fetcher";
 import {
 	del,

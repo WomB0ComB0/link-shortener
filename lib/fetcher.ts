@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { HttpClient, HttpClientRequest } from "@effect/platform";
-import { Duration, Effect, ParseResult, pipe, Schedule, Schema } from "effect";
+import { Duration, Effect, pipe, Schedule, Schema } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/http";
 
 /**
  * Configuration options for the fetcher utility.
@@ -32,7 +32,7 @@ export interface FetcherOptions<T = unknown> {
 	/** Additional headers to include in the request */
 	headers?: Record<string, string>;
 	/** Effect/Schema for runtime validation of the response */
-	schema?: Schema.Schema<T, any, never>;
+	schema?: Schema.Codec<T, any, never, never>;
 	/** Abortsignal */
 	signal?: AbortSignal;
 	/** Body type - defaults to 'json', use 'text' for form-encoded data */
@@ -42,21 +42,21 @@ export interface FetcherOptions<T = unknown> {
 /**
  * Represents all supported HTTP methods for the fetcher utility.
  */
-export type HttpMethod = Schema.Schema.Type<typeof HttpMethod>;
+export type HttpMethod = (typeof HttpMethod)["Type"];
 /**
  * Represents a type-safe map of query parameters.
  * Each value can be a string, number, boolean, null, undefined, or an array of those types.
  */
-export type QueryParams = Schema.Schema.Type<typeof QueryParams>;
+export type QueryParams = (typeof QueryParams)["Type"];
 /**
  * Represents a type-safe request body for HTTP methods that support a body.
  * Can be an object, array, string, number, boolean, or null.
  */
-export type RequestBody = Schema.Schema.Type<typeof RequestBody>;
+export type RequestBody = (typeof RequestBody)["Type"];
 /**
  * Represents HTTP headers as key-value string pairs.
  */
-export type Headers = Schema.Schema.Type<typeof Headers>;
+export type Headers = (typeof Headers)["Type"];
 
 const EMPTY = "";
 
@@ -140,7 +140,7 @@ const getBaseURL = (): string => {
  */
 
 // HTTP Method type definition
-const HttpMethod = Schema.Literal(
+const HttpMethod = Schema.Literals([
 	"GET",
 	"POST",
 	"PUT",
@@ -148,31 +148,31 @@ const HttpMethod = Schema.Literal(
 	"DELETE",
 	"OPTIONS",
 	"HEAD",
-);
+]);
 // Query parameters type definition
-const QueryParams = Schema.Record({
-	key: Schema.String,
-	value: Schema.Union(
+const QueryParams = Schema.Record(
+	Schema.String,
+	Schema.Union([
 		Schema.String,
 		Schema.Number,
 		Schema.Boolean,
 		Schema.Undefined,
 		Schema.Null,
-		Schema.Array(Schema.Union(Schema.String, Schema.Number, Schema.Boolean)),
-	),
-});
+		Schema.Array(Schema.Union([Schema.String, Schema.Number, Schema.Boolean])),
+	]),
+);
 // Request body type definition
-const RequestBody = Schema.Union(
-	Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+const RequestBody = Schema.Union([
+	Schema.Record(Schema.String, Schema.Unknown),
 	Schema.Array(Schema.Unknown),
 	Schema.String,
 	Schema.Number,
 	Schema.Boolean,
 	Schema.Null,
-);
+]);
 // Headers type definition
 // TODO: flag
-const Headers = Schema.Record({ key: Schema.String, value: Schema.String });
+const Headers = Schema.Record(Schema.String, Schema.String);
 
 /**
  * Custom error class for validation-specific errors.
@@ -268,13 +268,13 @@ export function fetcher<T = unknown>(
 /**
  * Performs a GET request with Effect schema validation and automatic type inference.
  */
-export function fetcher<S extends Schema.Schema<any, any, never>>(
+export function fetcher<S extends Schema.Codec<any, any, never, never>>(
 	input: string,
 	method: "GET",
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -293,14 +293,14 @@ export function fetcher<T = unknown>(
 /**
  * Performs a POST, PUT, or PATCH request with Effect schema validation and automatic type inference.
  */
-export function fetcher<S extends Schema.Schema<any, any, never>>(
+export function fetcher<S extends Schema.Codec<any, any, never, never>>(
 	input: string,
 	method: "POST" | "PUT" | "PATCH",
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 	body?: RequestBody,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -426,7 +426,7 @@ export function fetcher<T = unknown>(
 			case "PATCH":
 				return HttpClientRequest.patch(url);
 			case "DELETE":
-				return HttpClientRequest.del(url);
+				return HttpClientRequest.delete(url);
 			case "OPTIONS":
 				return HttpClientRequest.options(url);
 			case "HEAD":
@@ -445,12 +445,10 @@ export function fetcher<T = unknown>(
 			return Effect.succeed(data as T);
 		}
 
-		const result = Schema.decodeUnknownEither(schema)(data);
+		const result = Schema.decodeUnknownResult(schema)(data);
 
-		if (result._tag === "Left") {
-			const problems = ParseResult.TreeFormatter.formatIssueSync(
-				result.left.issue,
-			);
+		if (result._tag === "Failure") {
+			const problems = result.failure.toString();
 			const validationError = new ValidationError(
 				"Response validation failed",
 				url,
@@ -463,7 +461,7 @@ export function fetcher<T = unknown>(
 			return Effect.fail(validationError);
 		}
 
-		return Effect.succeed(result.right as T);
+		return Effect.succeed(result.success as T);
 	};
 
 	return Effect.gen(function* () {
@@ -510,36 +508,30 @@ export function fetcher<T = unknown>(
 		): Effect.Effect<A, FetcherError | E, R> =>
 			pipe(
 				eff,
-				Effect.timeoutFail({
+				Effect.timeoutOrElse({
 					duration: Duration.millis(timeout),
 					onTimeout: () =>
-						new FetcherError(
-							"Request timed out",
-							url,
-							undefined,
-							undefined,
-							attempt,
+						Effect.fail(
+							new FetcherError(
+								"Request timed out",
+								url,
+								undefined,
+								undefined,
+								attempt,
+							),
 						),
 				}),
 			);
 
-		// Enhanced retry schedule:
-		// - Exponential backoff starting from retryDelay
-		// - Maximum number of retries
-		// - Special handling for 429 rate limit errors
-		const retrySchedule = pipe(
-			Schedule.exponential(Duration.millis(retryDelay)),
-			Schedule.intersect(Schedule.recurs(retries)),
-			Schedule.whileInput((error: FetcherError | ValidationError) => {
-				// Don't retry validation errors or client errors (except 429)
-				if (error instanceof ValidationError) return false;
-				if (error instanceof FetcherError && error.status) {
-					if (error.status === 429) return true; // Always retry 429 rate limits
-					if (error.status >= 400 && error.status < 500) return false; // Don't retry other 4xx
-				}
-				return true;
-			}),
-		);
+		const shouldRetry = (error: FetcherError | ValidationError): boolean => {
+			// Don't retry validation errors or client errors (except 429)
+			if (error instanceof ValidationError) return false;
+			if (error instanceof FetcherError && error.status) {
+				if (error.status === 429) return true; // Always retry 429 rate limits
+				if (error.status >= 400 && error.status < 500) return false; // Don't retry other 4xx
+			}
+			return true;
+		};
 
 		/**
 		 * Executes the HTTP request, handling errors, HTTP status, response parsing, and validation.
@@ -568,7 +560,7 @@ export function fetcher<T = unknown>(
 			if (response.status < 200 || response.status >= 300) {
 				const errorText = yield* pipe(
 					response.text,
-					Effect.catchAll(() => Effect.succeed("")),
+					Effect.catch(() => Effect.succeed("")),
 				);
 
 				let errorData: unknown;
@@ -611,7 +603,7 @@ export function fetcher<T = unknown>(
 			// Parse response data as JSON, with fallback to text and detailed error reporting
 			const rawData = yield* pipe(
 				response.json,
-				Effect.catchAll((error) => {
+				Effect.catch((error) => {
 					// Try to get response text for better debugging
 					return pipe(
 						response.text,
@@ -627,7 +619,7 @@ export function fetcher<T = unknown>(
 								),
 							);
 						}),
-						Effect.catchAll(() =>
+						Effect.catch(() =>
 							Effect.fail(
 								new FetcherError(
 									`Failed to parse response: ${error instanceof Error ? error.message : String(error)}`,
@@ -651,8 +643,12 @@ export function fetcher<T = unknown>(
 		// Run the request with retry and error handling
 		return yield* pipe(
 			executeRequest,
-			Effect.retry(retrySchedule),
-			Effect.catchAll((error) => {
+			Effect.retry({
+				schedule: Schedule.exponential(Duration.millis(retryDelay)),
+				times: retries,
+				while: shouldRetry,
+			}),
+			Effect.catch((error) => {
 				if (error instanceof FetcherError || error instanceof ValidationError) {
 					if (onError) onError(error);
 					return Effect.fail(error);
@@ -696,12 +692,12 @@ export function get<T = unknown>(
 	params?: QueryParams,
 ): Effect.Effect<T, FetcherError | ValidationError, HttpClient.HttpClient>;
 
-export function get<S extends Schema.Schema<any, any, never>>(
+export function get<S extends Schema.Codec<any, any, never, never>>(
 	url: string,
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -724,13 +720,13 @@ export function post<T = unknown>(
 	params?: QueryParams,
 ): Effect.Effect<T, FetcherError | ValidationError, HttpClient.HttpClient>;
 
-export function post<S extends Schema.Schema<any, any, never>>(
+export function post<S extends Schema.Codec<any, any, never, never>>(
 	url: string,
 	body: RequestBody,
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -754,13 +750,13 @@ export function put<T = unknown>(
 	params?: QueryParams,
 ): Effect.Effect<T, FetcherError | ValidationError, HttpClient.HttpClient>;
 
-export function put<S extends Schema.Schema<any, any, never>>(
+export function put<S extends Schema.Codec<any, any, never, never>>(
 	url: string,
 	body: RequestBody,
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -784,13 +780,13 @@ export function patch<T = unknown>(
 	params?: QueryParams,
 ): Effect.Effect<T, FetcherError | ValidationError, HttpClient.HttpClient>;
 
-export function patch<S extends Schema.Schema<any, any, never>>(
+export function patch<S extends Schema.Codec<any, any, never, never>>(
 	url: string,
 	body: RequestBody,
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -813,12 +809,12 @@ export function del<T = unknown>(
 	params?: QueryParams,
 ): Effect.Effect<T, FetcherError | ValidationError, HttpClient.HttpClient>;
 
-export function del<S extends Schema.Schema<any, any, never>>(
+export function del<S extends Schema.Codec<any, any, never, never>>(
 	url: string,
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -840,12 +836,12 @@ export function options<T = unknown>(
 	params?: QueryParams,
 ): Effect.Effect<T, FetcherError | ValidationError, HttpClient.HttpClient>;
 
-export function options<S extends Schema.Schema<any, any, never>>(
+export function options<S extends Schema.Codec<any, any, never, never>>(
 	url: string,
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -867,12 +863,12 @@ export function head<T = unknown>(
 	params?: QueryParams,
 ): Effect.Effect<T, FetcherError | ValidationError, HttpClient.HttpClient>;
 
-export function head<S extends Schema.Schema<any, any, never>>(
+export function head<S extends Schema.Codec<any, any, never, never>>(
 	url: string,
-	options: FetcherOptions<Schema.Schema.Type<S>> & { schema: S },
+	options: FetcherOptions<S["Type"]> & { schema: S },
 	params?: QueryParams,
 ): Effect.Effect<
-	Schema.Schema.Type<S>,
+	S["Type"],
 	FetcherError | ValidationError,
 	HttpClient.HttpClient
 >;
@@ -905,7 +901,7 @@ export function head<T = unknown>(
  * ```
  */
 export const createPaginatedSchema = <T, I>(
-	itemSchema: Schema.Schema<T, I, never>,
+	itemSchema: Schema.Codec<T, I, never, never>,
 ) => {
 	return Schema.Struct({
 		data: Schema.Array(itemSchema),
@@ -936,7 +932,7 @@ export const createPaginatedSchema = <T, I>(
  * ```
  */
 export const createApiResponseSchema = <T, I>(
-	dataSchema: Schema.Schema<T, I, never>,
+	dataSchema: Schema.Codec<T, I, never, never>,
 ) => {
 	return Schema.Struct({
 		success: Schema.Boolean,

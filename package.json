@@ -14,8 +14,6 @@
 		"links:audit": "bun scripts/check-link-health.ts --security"
 	},
 	"dependencies": {
-		"@effect/platform": "^0.97.1",
-		"@effect/schema": "^0.75.5",
 		"@iconify-json/heroicons": "^1.2.3",
 		"@nuxt/fonts": "^1.2.0",
 		"@nuxt/icon": "^2.6.3",
@@ -27,7 +25,7 @@
 		"@urql/core": "^6.0.1",
 		"@vite-pwa/nuxt": "^2.0.2",
 		"axios": "^1.7.9",
-		"effect": "^3.22.5",
+		"effect": "^4.1.5",
 		"h3": "^1.15.3",
 		"node-cache": "^5.1.2",
 		"nuxt": "^4.6.2",

@@ -20,7 +20,6 @@
  * Type-safe with Effect Schema
  */
 
-import * as S from "@effect/schema/Schema";
 import { createError, defineEventHandler, readBody } from "h3";
 import {
 	CREATE_USER,

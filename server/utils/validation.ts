@@ -14,26 +14,24 @@
  * limitations under the License.
  */
 
-import type { ParseError } from "@effect/schema/ParseResult";
-import * as S from "@effect/schema/Schema";
-import { Effect } from "effect";
+import { Effect, Schema as S } from "effect";
 import { createError } from "h3";
 
 /**
  * Helper to convert Effect Schema validation to H3-compatible format
  */
 export function validateRequest<A, I>(
-	schema: S.Schema<A, I>,
+	schema: S.Codec<A, I>,
 	input: unknown,
-): Effect.Effect<A, ParseError> {
-	return S.decode(schema)(input as I);
+): Effect.Effect<A, S.SchemaError> {
+	return S.decodeUnknownEffect(schema)(input);
 }
 
 /**
  * Helper to run Effect and handle errors for H3 handlers
  */
 export async function runEffect<A>(
-	effect: Effect.Effect<A, ParseError>,
+	effect: Effect.Effect<A, S.SchemaError>,
 ): Promise<A> {
 	return Effect.runPromise(effect);
 }
@@ -42,12 +40,12 @@ export async function runEffect<A>(
  * Validate and decode input synchronously, throwing on error
  */
 export function validateSync<A, I>(
-	schema: S.Schema<A, I>,
+	schema: S.Codec<A, I>,
 	input: unknown,
 	customError?: string,
 ): A {
 	try {
-		return S.decodeSync(schema)(input as I);
+		return S.decodeUnknownSync(schema)(input);
 	} catch (error) {
 		if (customError) {
 			throw createError({
@@ -68,11 +66,11 @@ export function validateSync<A, I>(
  * Validate input and return H3 error if validation fails
  */
 export async function validateAsync<A, I>(
-	schema: S.Schema<A, I>,
+	schema: S.Codec<A, I>,
 	input: unknown,
 ): Promise<A> {
 	try {
-		const effect = S.decode(schema)(input as I);
+		const effect = S.decodeUnknownEffect(schema)(input);
 		return await Effect.runPromise(effect);
 	} catch (error) {
 		throw createError({
@@ -84,13 +82,12 @@ export async function validateAsync<A, I>(
 }
 
 /**
- * Extract validation errors from ParseError
+ * Extract validation errors from SchemaError
  */
-export function formatValidationErrors(error: ParseError): Array<{
+export function formatValidationErrors(error: S.SchemaError): Array<{
 	field: string;
 	message: string;
 }> {
-	// This is a simplified version - Effect Schema provides rich error formatting
 	return [
 		{
 			field: "unknown",

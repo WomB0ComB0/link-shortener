@@ -26,7 +26,7 @@ import {
 	scryptSync,
 	timingSafeEqual,
 } from "node:crypto";
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import { deleteCookie, getCookie, getHeader, setCookie } from "h3";
 import {
 	EmailSchema,

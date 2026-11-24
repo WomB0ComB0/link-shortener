@@ -19,7 +19,7 @@
  * Strict URL syntax, protocol, SSRF, port, credential, punycode, and payload guard.
  */
 
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import { classifyIpAddress, isBlockedHostname } from "./ip-utils";
 
 // Effect Schema for URL validation result
@@ -292,17 +292,19 @@ export function isValidUrlFormat(url: string): boolean {
  * Effect Schema for secure URL validation
  */
 export const SecureUrlSchema = S.String.pipe(
-	S.filter(
-		(url) => {
-			try {
-				const parsedUrl = new URL(url);
-				return ["http:", "https:"].includes(parsedUrl.protocol);
-			} catch {
-				return false;
-			}
-		},
-		{
-			message: () => "Must be a valid HTTP or HTTPS URL",
-		},
+	S.check(
+		S.makeFilter(
+			(url) => {
+				try {
+					const parsedUrl = new URL(url);
+					return ["http:", "https:"].includes(parsedUrl.protocol);
+				} catch {
+					return false;
+				}
+			},
+			{
+				message: "Must be a valid HTTP or HTTPS URL",
+			},
+		),
 	),
 );

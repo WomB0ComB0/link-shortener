@@ -20,8 +20,8 @@
  * List all API keys for the authenticated user
  */
 
-import { FetchHttpClient } from "@effect/platform";
 import { Effect, Schema } from "effect";
+import { FetchHttpClient } from "effect/http";
 import { post } from "../../../lib/fetcher";
 
 // Response schema for API keys list (never selects the hashed `key` column)

@@ -20,7 +20,7 @@
  */
 
 import dns from "node:dns/promises";
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import { classifyIpAddress, isBlockedHostname } from "./ip-utils";
 
 // Effect Schema for MX record

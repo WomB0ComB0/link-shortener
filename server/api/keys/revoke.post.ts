@@ -20,8 +20,8 @@
  * Revoke (deactivate) an API key
  */
 
-import { FetchHttpClient } from "@effect/platform";
 import { Effect, Schema } from "effect";
+import { FetchHttpClient } from "effect/http";
 import { post } from "../../../lib/fetcher";
 import { validateUUID } from "../../schemas/index";
 

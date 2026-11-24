@@ -42,7 +42,7 @@ describe("fetcher utilities", () => {
 
 		await expect(
 			Effect.runPromise(
-				Schema.decodeUnknown(page)({
+				Schema.decodeUnknownEffect(page)({
 					data: [{ id: 1 }],
 					pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
 				}),
@@ -53,7 +53,7 @@ describe("fetcher utilities", () => {
 		});
 		await expect(
 			Effect.runPromise(
-				Schema.decodeUnknown(response)({
+				Schema.decodeUnknownEffect(response)({
 					success: true,
 					data: { id: 1 },
 					message: "ok",

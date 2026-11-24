@@ -27,7 +27,7 @@
  */
 
 import dns from "node:dns/promises";
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import NodeCache from "node-cache";
 import { classifyIpAddress } from "./ip-utils";
 

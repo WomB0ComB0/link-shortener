@@ -22,7 +22,7 @@
 import dns from "node:dns";
 import https from "node:https";
 import type { TLSSocket } from "node:tls";
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import { classifyIpAddress } from "./ip-utils";
 
 // Effect Schema for SSL check result

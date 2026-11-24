@@ -31,7 +31,7 @@
 import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import { classifyIpAddress } from "./ip-utils";
 import { checkSuspiciousPatterns } from "./malware-checker";
 import { validateUrl } from "./url-validator";
@@ -46,7 +46,7 @@ export class HttpSecurityCheckResult extends S.Class<HttpSecurityCheckResult>(
 	statusCode: S.NullOr(S.Number),
 	contentType: S.NullOr(S.String),
 	contentDispositionFilename: S.NullOr(S.String),
-	securityGrade: S.Literal("A+", "A", "B", "C", "D", "F", "N/A"),
+	securityGrade: S.Literals(["A+", "A", "B", "C", "D", "F", "N/A"]),
 	headerScore: S.Number,
 	headers: S.Struct({
 		strictTransportSecurity: S.Boolean,

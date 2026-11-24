@@ -20,7 +20,7 @@
  * credential injection, nested dangerous schemes, high-abuse TLDs, and shortener chaining.
  */
 
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import { classifyIpAddress } from "./ip-utils";
 
 // Effect Schema for phishing check result

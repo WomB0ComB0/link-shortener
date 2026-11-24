@@ -23,7 +23,7 @@
 import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import { classifyIpAddress } from "./ip-utils";
 import { validateUrl } from "./url-validator";
 

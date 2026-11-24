@@ -14,26 +14,27 @@
  * limitations under the License.
  */
 
-import * as S from "@effect/schema/Schema";
-import { pipe } from "effect/Function";
+import { pipe, Schema as S } from "effect";
 
 /**
  * URL Schema - Validates HTTP/HTTPS URLs
  */
 export const UrlSchema = pipe(
 	S.String,
-	S.filter(
-		(url) => {
-			try {
-				const parsed = new URL(url);
-				return parsed.protocol === "http:" || parsed.protocol === "https:";
-			} catch {
-				return false;
-			}
-		},
-		{
-			message: () => "Must be a valid HTTP or HTTPS URL",
-		},
+	S.check(
+		S.makeFilter(
+			(url) => {
+				try {
+					const parsed = new URL(url);
+					return parsed.protocol === "http:" || parsed.protocol === "https:";
+				} catch {
+					return false;
+				}
+			},
+			{
+				message: "Must be a valid HTTP or HTTPS URL",
+			},
+		),
 	),
 );
 
@@ -42,11 +43,13 @@ export const UrlSchema = pipe(
  */
 export const CustomAliasSchema = pipe(
 	S.String,
-	S.minLength(1),
-	S.maxLength(50),
-	S.pattern(/^[a-zA-Z0-9_-]+$/),
-	S.annotations({
-		message: () =>
+	S.check(
+		S.isMinLength(1),
+		S.isMaxLength(50),
+		S.isPattern(/^[a-zA-Z0-9_-]+$/),
+	),
+	S.annotate({
+		message:
 			"Custom alias must be 1-50 characters and contain only letters, numbers, hyphens, and underscores",
 	}),
 );
@@ -56,11 +59,9 @@ export const CustomAliasSchema = pipe(
  */
 export const ShortUrlCodeSchema = pipe(
 	S.String,
-	S.minLength(6),
-	S.maxLength(12),
-	S.pattern(/^[a-zA-Z0-9]+$/),
-	S.annotations({
-		message: () => "Short URL code must be 6-12 alphanumeric characters",
+	S.check(S.isMinLength(6), S.isMaxLength(12), S.isPattern(/^[a-zA-Z0-9]+$/)),
+	S.annotate({
+		message: "Short URL code must be 6-12 alphanumeric characters",
 	}),
 );
 
@@ -69,12 +70,12 @@ export const ShortUrlCodeSchema = pipe(
  */
 export const UUIDSchema = pipe(
 	S.String,
-	S.pattern(
-		/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+	S.check(
+		S.isPattern(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+			{ message: "Must be a valid UUID v4" },
+		),
 	),
-	S.annotations({
-		message: () => "Must be a valid UUID v4",
-	}),
 );
 
 /**
@@ -82,10 +83,11 @@ export const UUIDSchema = pipe(
  */
 export const MasterPasswordSchema = pipe(
 	S.String,
-	S.minLength(8),
-	S.annotations({
-		message: () => "Master password must be at least 8 characters",
-	}),
+	S.check(
+		S.isMinLength(8, {
+			message: "Master password must be at least 8 characters",
+		}),
+	),
 );
 
 /**
@@ -93,10 +95,12 @@ export const MasterPasswordSchema = pipe(
  */
 export const EmailSchema = pipe(
 	S.String,
-	S.filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), {
-		message: () => "Must be a valid email address",
-	}),
-	S.annotations({
+	S.check(
+		S.makeFilter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), {
+			message: "Must be a valid email address",
+		}),
+	),
+	S.annotate({
 		description: "A valid email address",
 	}),
 );
@@ -110,17 +114,21 @@ export const EmailSchema = pipe(
  */
 export const PasswordSchema = pipe(
 	S.String,
-	S.minLength(8),
-	S.filter((password) => /[A-Z]/.test(password), {
-		message: () => "Password must contain at least one uppercase letter",
-	}),
-	S.filter((password) => /[a-z]/.test(password), {
-		message: () => "Password must contain at least one lowercase letter",
-	}),
-	S.filter((password) => /[0-9]/.test(password), {
-		message: () => "Password must contain at least one number",
-	}),
-	S.annotations({
+	S.check(
+		S.isMinLength(8, {
+			message: "Password must be at least 8 characters",
+		}),
+		S.makeFilter((password) => /[A-Z]/.test(password), {
+			message: "Password must contain at least one uppercase letter",
+		}),
+		S.makeFilter((password) => /[a-z]/.test(password), {
+			message: "Password must contain at least one lowercase letter",
+		}),
+		S.makeFilter((password) => /[0-9]/.test(password), {
+			message: "Password must contain at least one number",
+		}),
+	),
+	S.annotate({
 		description:
 			"A strong password with at least 8 characters, one uppercase, one lowercase, and one number",
 	}),
@@ -131,9 +139,12 @@ export const PasswordSchema = pipe(
  */
 export const PasswordHashSchema = pipe(
 	S.String,
-	S.pattern(/^(?:scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}|[a-f0-9]{64})$/),
-	S.annotations({
-		message: () => "Must be a valid password hash",
+	S.check(
+		S.isPattern(/^(?:scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}|[a-f0-9]{64})$/, {
+			message: "Must be a valid password hash",
+		}),
+	),
+	S.annotate({
 		description: "A salted scrypt hash or legacy SHA-256 hex hash",
 	}),
 );
@@ -143,8 +154,8 @@ export const PasswordHashSchema = pipe(
  */
 export const JwtTokenSchema = pipe(
 	S.String,
-	S.minLength(20),
-	S.annotations({
+	S.check(S.isMinLength(20)),
+	S.annotate({
 		description: "A signed session token",
 	}),
 );
@@ -154,10 +165,9 @@ export const JwtTokenSchema = pipe(
  */
 export const DisplayNameSchema = pipe(
 	S.String,
-	S.minLength(1),
-	S.maxLength(100),
-	S.annotations({
-		message: () => "Display name must be 1-100 characters",
+	S.check(S.isMinLength(1), S.isMaxLength(100)),
+	S.annotate({
+		message: "Display name must be 1-100 characters",
 		description: "User's display name",
 	}),
 );
@@ -167,12 +177,12 @@ export const DisplayNameSchema = pipe(
  */
 export const IpAddressSchema = pipe(
 	S.String,
-	S.pattern(
-		/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/,
+	S.check(
+		S.isPattern(
+			/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/,
+			{ message: "Must be a valid IPv4 or IPv6 address" },
+		),
 	),
-	S.annotations({
-		message: () => "Must be a valid IPv4 or IPv6 address",
-	}),
 );
 
 /**
@@ -180,10 +190,11 @@ export const IpAddressSchema = pipe(
  */
 export const ApiKeySchema = pipe(
 	S.String,
-	S.pattern(/^sk_[A-Za-z0-9_-]{43}$/),
-	S.annotations({
-		message: () => "Must be a valid API key (format: sk_[43 chars])",
-	}),
+	S.check(
+		S.isPattern(/^sk_[A-Za-z0-9_-]{43}$/, {
+			message: "Must be a valid API key (format: sk_[43 chars])",
+		}),
+	),
 );
 
 /**
@@ -204,7 +215,7 @@ export class ShortLink extends S.Class<ShortLink>("ShortLink")({
 	id: UUIDSchema,
 	userId: S.optional(UUIDSchema),
 	originalUrl: UrlSchema,
-	shortUrl: S.Union(ShortUrlCodeSchema, CustomAliasSchema),
+	shortUrl: S.Union([ShortUrlCodeSchema, CustomAliasSchema]),
 	customAlias: S.optional(CustomAliasSchema),
 	createdAt: S.DateFromString,
 	isActive: S.Boolean,
@@ -313,7 +324,7 @@ export class CreateApiKeyRequest extends S.Class<CreateApiKeyRequest>(
 )({
 	masterPassword: MasterPasswordSchema,
 	userId: UUIDSchema,
-	name: pipe(S.String, S.minLength(1), S.maxLength(100)),
+	name: pipe(S.String, S.check(S.isMinLength(1), S.isMaxLength(100))),
 	expiresAt: S.optional(S.DateFromString),
 }) {}
 
@@ -335,8 +346,8 @@ export class ApiKeyResponse extends S.Class<ApiKeyResponse>("ApiKeyResponse")({
 export class RateLimitConfig extends S.Class<RateLimitConfig>(
 	"RateLimitConfig",
 )({
-	maxRequests: pipe(S.Number, S.int(), S.positive()),
-	windowSeconds: pipe(S.Number, S.int(), S.positive()),
+	maxRequests: pipe(S.Number, S.check(S.isInt(), S.isGreaterThan(0))),
+	windowSeconds: pipe(S.Number, S.check(S.isInt(), S.isGreaterThan(0))),
 	identifier: S.optional(S.String),
 }) {}
 
@@ -367,7 +378,10 @@ export class ValidationError extends S.Class<ValidationError>(
 export class ApiErrorResponse extends S.Class<ApiErrorResponse>(
 	"ApiErrorResponse",
 )({
-	statusCode: pipe(S.Number, S.int(), S.between(400, 599)),
+	statusCode: pipe(
+		S.Number,
+		S.check(S.isInt(), S.isBetween({ minimum: 400, maximum: 599 })),
+	),
 	statusMessage: S.String,
 	message: S.String,
 	errors: S.optional(S.Array(ValidationError)),
@@ -421,8 +435,8 @@ export class SessionTokenPayload extends S.Class<SessionTokenPayload>(
 	"SessionTokenPayload",
 )({
 	userId: UUIDSchema,
-	iat: pipe(S.Number, S.int(), S.positive()),
-	exp: pipe(S.Number, S.int(), S.positive()),
+	iat: pipe(S.Number, S.check(S.isInt(), S.isGreaterThan(0))),
+	exp: pipe(S.Number, S.check(S.isInt(), S.isGreaterThan(0))),
 }) {}
 
 // User Profile Response
@@ -489,27 +503,27 @@ export class GraphQLGetUserByEmailWithPasswordResponse extends S.Class<GraphQLGe
  */
 
 export const decodeSync =
-	<A, I>(schema: S.Schema<A, I>) =>
+	<A, I>(schema: S.Codec<A, I>) =>
 	(input: I): A => {
 		return S.decodeSync(schema)(input);
 	};
 
 export const encodeSync =
-	<A, I>(schema: S.Schema<A, I>) =>
+	<A, I>(schema: S.Codec<A, I>) =>
 	(value: A): I => {
 		return S.encodeSync(schema)(value);
 	};
 
 export const decode =
-	<A, I>(schema: S.Schema<A, I>) =>
+	<A, I>(schema: S.Codec<A, I>) =>
 	(input: I) => {
-		return S.decode(schema)(input);
+		return S.decodeEffect(schema)(input);
 	};
 
 export const encode =
-	<A, I>(schema: S.Schema<A, I>) =>
+	<A, I>(schema: S.Codec<A, I>) =>
 	(value: A) => {
-		return S.encode(schema)(value);
+		return S.encodeEffect(schema)(value);
 	};
 
 /**

@@ -33,7 +33,7 @@
  *        cloaking inspection — plus phishing/malware/threat-intel re-scan on final targets.
  */
 
-import * as S from "@effect/schema/Schema";
+import { Schema as S } from "effect";
 import NodeCache from "node-cache";
 import { checkDns, DnsCheckResult } from "./dns-checker";
 import {
@@ -119,7 +119,7 @@ export class LinkVerificationResult extends S.Class<LinkVerificationResult>(
 )({
 	url: S.String,
 	isVerified: S.Boolean,
-	overallRisk: S.Literal("safe", "low", "medium", "high", "critical"),
+	overallRisk: S.Literals(["safe", "low", "medium", "high", "critical"]),
 	riskScore: S.Number, // 0-100
 	checks: S.Struct({
 		urlValidation: S.Any,

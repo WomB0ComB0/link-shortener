@@ -20,7 +20,6 @@
  * Type-safe with Effect Schema
  */
 
-import * as S from "@effect/schema/Schema";
 import { createError, defineEventHandler, readBody } from "h3";
 import { GET_USER_BY_EMAIL_WITH_PASSWORD } from "../../../lib/graphql/operations";
 import { AuthResponse, LoginRequest } from "../../../server/schemas/index";
