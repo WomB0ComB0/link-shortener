@@ -29,18 +29,62 @@ import {
 } from "../../link-health/runtime";
 import type { LinkHealthScope } from "../../link-health/types";
 
+type VercelRequestContext = {
+	get?: () => { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+};
+
+const VERCEL_REQUEST_CONTEXT_SYMBOL = Symbol.for("@vercel/request-context");
+
+function getRuntimeWaitUntil(
+	event: unknown,
+): ((promise: Promise<unknown>) => void) | undefined {
+	const vercelCtx = (
+		globalThis as Record<PropertyKey, VercelRequestContext | undefined>
+	)[VERCEL_REQUEST_CONTEXT_SYMBOL]?.get?.();
+	if (typeof vercelCtx?.waitUntil === "function") {
+		return (promise) => vercelCtx.waitUntil?.(promise);
+	}
+
+	const h3Event = event as {
+		context?: { waitUntil?: (promise: Promise<unknown>) => void };
+		waitUntil?: (promise: Promise<unknown>) => void;
+	};
+	if (typeof h3Event?.context?.waitUntil === "function") {
+		return (promise) => h3Event.context?.waitUntil?.(promise);
+	}
+	// On Vercel Node.js, Nitro's `event.waitUntil` only pushes to an internal array
+	// that the Vercel Node listener never awaits; only rely on it outside Vercel.
+	if (process.env.VERCEL !== "1" && typeof h3Event?.waitUntil === "function") {
+		return (promise) => h3Event.waitUntil?.(promise);
+	}
+	return undefined;
+}
+
 export default defineEventHandler(async (event) => {
 	const query = getQuery(event);
 	const scope: LinkHealthScope = query.scope === "all" ? "all" : "public";
 
 	const result = await readLinkHealth(scope);
 
-	// Schedule non-blocking background refresh (Nitro/Vercel waitUntil when available)
+	// Schedule non-blocking background refresh using Vercel's real runtime waitUntil
+	// (prevents Vercel from freezing the Lambda mid-probe and firing overdue 5s deadlines).
 	const refreshPromise = refreshLinkHealth(scope).catch((err) => {
 		console.error("[link-health] background refresh failed:", err);
 	});
-	if (typeof (event as any).waitUntil === "function") {
-		(event as any).waitUntil(refreshPromise);
+	const runtimeWaitUntil = getRuntimeWaitUntil(event);
+	if (runtimeWaitUntil) {
+		runtimeWaitUntil(refreshPromise);
+	} else if (process.env.VERCEL === "1") {
+		// Fallback if Vercel request context is unavailable: bound inline wait so probes
+		// finish before the container freezes instead of leaving dangling timers.
+		let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+		await Promise.race([
+			refreshPromise,
+			new Promise<void>((resolve) => {
+				fallbackTimer = setTimeout(resolve, 2500);
+			}),
+		]);
+		clearTimeout(fallbackTimer);
 	}
 
 	setResponseHeader(

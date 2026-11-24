@@ -128,11 +128,20 @@ export async function checkSsl(
 		const urlObj = new URL(url);
 		const port = urlObj.port ? Number(urlObj.port) : 443;
 
+		// Use a dedicated non-pooling agent with TLS session caching disabled so back-to-back
+		// checks against the same host always complete a full handshake and return a populated
+		// peer certificate (resumed TLS sessions / pooled sockets can yield `{}` in Node).
+		const agent = new https.Agent({
+			keepAlive: false,
+			maxCachedSessions: 0,
+		});
+
 		const options: https.RequestOptions = {
 			hostname: urlObj.hostname,
 			port,
 			path: "/",
 			method: "HEAD",
+			agent,
 			rejectUnauthorized: true,
 			servername: urlObj.hostname,
 			timeout: timeoutMs,
@@ -182,6 +191,8 @@ export async function checkSsl(
 			});
 
 			req.end();
+		}).finally(() => {
+			agent.destroy();
 		});
 
 		if (!certificateInfo.valid) {

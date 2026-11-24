@@ -73,4 +73,24 @@ describe("link-health URL normalizer and SSRF-safe probe", () => {
 			httpStatus: 503,
 		});
 	});
+
+	it("returns unknown instead of temporary when the deadline timer fires far overdue (container freeze)", async () => {
+		vi.useFakeTimers();
+		try {
+			const probe = createLinkProbe({
+				resolve: vi.fn().mockResolvedValue(["93.184.216.34"]),
+				request: vi.fn(() => new Promise(() => {})),
+			});
+
+			const start = Date.now();
+			const promise = probe("https://example.com/frozen");
+			// Simulate the container waking 10s past the 5s deadline
+			vi.setSystemTime(start + 15_000);
+			await vi.advanceTimersByTimeAsync(5000);
+
+			await expect(promise).resolves.toEqual({ kind: "unknown" });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });

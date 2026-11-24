@@ -35,6 +35,7 @@ import type { LinkObservation } from "./types";
 import { normalizeLinkUrl } from "./url";
 
 const DEADLINE_MS = 5000;
+const FREEZE_OVERSHOOT_MS = 2000;
 const MAX_REDIRECTS = 3;
 const MAX_DNS_ANSWERS = 16;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -169,11 +170,17 @@ export function createLinkProbe(deps: ProbeDependencies) {
 		if (!canonical) return { kind: "unknown" };
 
 		const controller = new AbortController();
+		const startedAt = Date.now();
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		const deadline = new Promise<LinkObservation>((resolve) => {
 			timer = setTimeout(() => {
 				controller.abort();
-				resolve({ kind: "temporary" });
+				// If the timer fired far past DEADLINE_MS, the serverless container was
+				// suspended mid-probe — avoid poisoning the cache with a false "temporary" outage.
+				const overshotMs = Date.now() - startedAt - DEADLINE_MS;
+				resolve({
+					kind: overshotMs > FREEZE_OVERSHOOT_MS ? "unknown" : "temporary",
+				});
 			}, DEADLINE_MS);
 		});
 

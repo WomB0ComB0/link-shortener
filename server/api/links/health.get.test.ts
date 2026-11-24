@@ -53,4 +53,30 @@ describe("GET /api/links/health endpoint", () => {
 		);
 		expect(waitUntil).toHaveBeenCalledTimes(1);
 	});
+
+	it("prefers Vercel request-context waitUntil over Nitro's event.waitUntil", async () => {
+		getQuery.mockReturnValue({});
+		readLinkHealth.mockResolvedValueOnce({ links: {} });
+		refreshLinkHealth.mockResolvedValueOnce(1);
+
+		const vercelWaitUntil = vi.fn();
+		const nitroWaitUntil = vi.fn();
+		const sym = Symbol.for("@vercel/request-context");
+		const prev = (globalThis as Record<PropertyKey, unknown>)[sym];
+		(globalThis as Record<PropertyKey, unknown>)[sym] = {
+			get: () => ({ waitUntil: vercelWaitUntil }),
+		};
+
+		try {
+			await healthHandler({ waitUntil: nitroWaitUntil } as never);
+			expect(vercelWaitUntil).toHaveBeenCalledTimes(1);
+			expect(nitroWaitUntil).not.toHaveBeenCalled();
+		} finally {
+			if (prev === undefined) {
+				delete (globalThis as Record<PropertyKey, unknown>)[sym];
+			} else {
+				(globalThis as Record<PropertyKey, unknown>)[sym] = prev;
+			}
+		}
+	});
 });
