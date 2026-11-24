@@ -12,7 +12,7 @@ Progressive Web App (PWA) experience.
 - Anonymous creation protected by a master password, plus authenticated link management.
 - Signed session tokens using `JWT_SECRET`.
 - Click analytics including user agent, referrer, IP, country, and city.
-- URL verification covering syntax, DNS, SSL/TLS, phishing indicators, and malware signals.
+- 9-stage URL security & OSINT verification covering syntax/SSRF, DNS, SSL/TLS, redirect chains, phishing heuristics, malware, Cloudflare/Quad9 threat DNSBLs, RDAP age/DNSSEC/CAA/DMARC, and HTTP security headers/HTML cloaking.
 - Redis-backed rate limiting, ban lists, and verification-result caching.
 - Hasura GraphQL over PostgreSQL for persistence.
 - API-key creation, masking, and revocation.
@@ -126,6 +126,7 @@ The complete template is in `.env.example`. The most important variables are:
 | `MASTER_PASSWORD_HASH` | SHA-256 hash used for anonymous link creation |
 | `JWT_SECRET` | Secret used to sign and verify session tokens |
 | `GOOGLE_SAFE_BROWSING_API_KEY` | Optional malware scanning integration |
+| `URLHAUS_AUTH_KEY` | Optional Abuse.ch URLhaus Auth-Key for URL-level malware lookups |
 | `ADMIN_BYPASS_SECRET` | Optional server-side verification bypass secret |
 
 Never commit `.env` or production secrets.

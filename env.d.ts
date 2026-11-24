@@ -34,6 +34,7 @@ declare global {
 			BASE_URL: string;
 			JWT_SECRET: string;
 			GOOGLE_SAFE_BROWSING_API_KEY: string;
+			URLHAUS_AUTH_KEY?: string;
 			ADMIN_BYPASS_SECRET: string;
 			SECURITY_VERIFICATION_ENABLED: string;
 			SECURITY_CACHE_TTL: string;
