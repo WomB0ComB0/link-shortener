@@ -14,16 +14,75 @@
  * limitations under the License.
  */
 
-import { createError, defineEventHandler } from "h3";
-import { apiGuard } from "../../lib/api-guard";
+import { createHash } from "node:crypto";
+import type { H3Event } from "h3";
+import { createError, defineEventHandler, getHeader } from "h3";
+import {
+	apiGuard,
+	type GuardTelemetryEvent,
+	setApiGuardTelemetryListener,
+} from "../../lib/api-guard";
 import { getClientIP } from "../../lib/get-ip";
-import { getRateLimitReset } from "../../lib/rate-limit";
+import {
+	buildRateLimitHeaders,
+	getRateLimitReset,
+} from "../../lib/rate-limit";
+import { metrics } from "../observability/metrics";
+import { getUserIdFromHeaders } from "../utils/auth";
+
+// Wire rate-limiter observability into the shared metrics registry (exposed on /api/health)
+setApiGuardTelemetryListener((ev: GuardTelemetryEvent) => {
+	metrics.rateLimitEvaluated += 1;
+	metrics.recordRateLimitEvalLatency(ev.durationMs);
+	if (ev.verdict === "allow") metrics.rateLimitAllowed += 1;
+	else if (ev.verdict === "limit") metrics.recordRateLimit429(ev.policy);
+	else if (ev.verdict === "ban") metrics.rateLimitBanned403 += 1;
+	if (ev.storeError) metrics.rateLimitStoreErrors += 1;
+	if (ev.storeTimeout) metrics.rateLimitStoreTimeouts += 1;
+	if (ev.circuitOpened) metrics.rateLimitCircuitOpenTrips += 1;
+	if (ev.usedLocalFallback) metrics.rateLimitLocalFallbackHits += 1;
+});
 
 /**
- * Pipelined Redis ban, CIDR, slow-mode, and sliding-window rate-limit middleware.
+ * Derive a non-sensitive identity key for rate-limiting without hitting the database:
+ * - Signed-in session JWT -> `user:<userId>`
+ * - API key (`Bearer sk_...`) -> `apikey:<sha256-16>` (never stores the raw key)
+ * - Anonymous -> `undefined` (falls back to normalized client IP)
+ */
+function resolveRateLimitIdentity(event: H3Event): string | undefined {
+	try {
+		const contextUserId = event.context?.user?.id;
+		if (typeof contextUserId === "string" && contextUserId.length > 0) {
+			return `user:${contextUserId}`;
+		}
+
+		const authHeader = getHeader(event, "authorization");
+		if (authHeader?.startsWith("Bearer sk_")) {
+			const rawKey = authHeader.slice("Bearer ".length).trim();
+			if (rawKey.length >= 16) {
+				const hash = createHash("sha256")
+					.update(rawKey)
+					.digest("hex")
+					.slice(0, 16);
+				return `apikey:${hash}`;
+			}
+		}
+
+		const sessionUserId = getUserIdFromHeaders(event);
+		if (sessionUserId) {
+			return `user:${sessionUserId}`;
+		}
+	} catch {
+		// Fall back cleanly to IP-based rate limiting if headers/event are partial
+	}
+	return undefined;
+}
+
+/**
+ * Pipelined Redis ban, CIDR, slow-mode, and distributed rate-limit middleware.
  *
- * Backed by `lib/api-guard.ts` with a 300ms time budget and circuit breaker so
- * Redis hiccups never stall API traffic.
+ * Backed by `lib/api-guard.ts` with a 300ms time budget, circuit breaker,
+ * identity-aware keying, in-process local fallback, and standard IETF `RateLimit-*` headers.
  */
 export default defineEventHandler(async (event) => {
 	const rawPath = event.path || "/";
@@ -36,11 +95,13 @@ export default defineEventHandler(async (event) => {
 
 	const method = event.node?.req?.method || "GET";
 	const clientIp = getClientIP(event);
+	const identityKey = resolveRateLimitIdentity(event);
 
 	const verdict = await apiGuard.check({
 		method,
 		pathname,
 		clientIp,
+		...(identityKey ? { identityKey } : {}),
 	});
 
 	if (verdict.kind === "ban") {
@@ -52,17 +113,18 @@ export default defineEventHandler(async (event) => {
 	}
 
 	if (verdict.kind === "limit") {
-		const retryAfterSeconds = Math.max(
-			1,
-			Math.ceil((verdict.reset - Date.now()) / 1000),
+		const headers = buildRateLimitHeaders(
+			{
+				limit: verdict.limit,
+				remaining: verdict.remaining,
+				reset: verdict.reset,
+				windowSeconds: verdict.windowSeconds,
+			},
+			{ isLimited: true },
 		);
-		event.node.res.setHeader("X-RateLimit-Limit", String(verdict.limit));
-		event.node.res.setHeader(
-			"X-RateLimit-Remaining",
-			String(verdict.remaining),
-		);
-		event.node.res.setHeader("X-RateLimit-Reset", String(verdict.reset));
-		event.node.res.setHeader("Retry-After", String(retryAfterSeconds));
+		for (const [name, value] of Object.entries(headers)) {
+			event.node.res.setHeader(name, value);
+		}
 
 		const resetFormatted = getRateLimitReset(verdict.reset);
 		throw createError({
@@ -79,17 +141,14 @@ export default defineEventHandler(async (event) => {
 	}
 
 	if (verdict.rateLimit) {
-		event.node.res.setHeader(
-			"X-RateLimit-Limit",
-			String(verdict.rateLimit.limit),
-		);
-		event.node.res.setHeader(
-			"X-RateLimit-Remaining",
-			String(verdict.rateLimit.remaining),
-		);
-		event.node.res.setHeader(
-			"X-RateLimit-Reset",
-			String(verdict.rateLimit.reset),
-		);
+		const headers = buildRateLimitHeaders({
+			limit: verdict.rateLimit.limit,
+			remaining: verdict.rateLimit.remaining,
+			reset: verdict.rateLimit.reset,
+			windowSeconds: verdict.rateLimit.windowSeconds,
+		});
+		for (const [name, value] of Object.entries(headers)) {
+			event.node.res.setHeader(name, value);
+		}
 	}
 });

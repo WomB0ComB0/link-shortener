@@ -19,13 +19,17 @@
  *
  * Intercepts single-segment non-reserved short codes directly at Nitro level
  * before Vue SSR, eliminating the old double-hop (`/{code}` -> `/api/{code}` -> dest).
- * Enforces the dedicated `redirect` rate-limit tier via `apiGuard`.
+ * Enforces the dedicated `redirect` token-bucket rate-limit tier via `apiGuard`
+ * and attaches standard IETF `RateLimit-*` + legacy `X-RateLimit-*` headers.
  */
 
 import { createError, defineEventHandler } from "h3";
 import { apiGuard } from "../../lib/api-guard";
 import { getClientIP } from "../../lib/get-ip";
-import { getRateLimitReset } from "../../lib/rate-limit";
+import {
+	buildRateLimitHeaders,
+	getRateLimitReset,
+} from "../../lib/rate-limit";
 import {
 	ALIAS_REGEX,
 	MAX_CUSTOM_ALIAS_LENGTH,
@@ -70,23 +74,36 @@ export default defineEventHandler(async (event) => {
 	}
 
 	if (verdict.kind === "limit") {
-		const retryAfterSeconds = Math.max(
-			1,
-			Math.ceil((verdict.reset - Date.now()) / 1000),
+		const headers = buildRateLimitHeaders(
+			{
+				limit: verdict.limit,
+				remaining: verdict.remaining,
+				reset: verdict.reset,
+				windowSeconds: verdict.windowSeconds,
+			},
+			{ isLimited: true },
 		);
-		event.node?.res?.setHeader("X-RateLimit-Limit", String(verdict.limit));
-		event.node?.res?.setHeader(
-			"X-RateLimit-Remaining",
-			String(verdict.remaining),
-		);
-		event.node?.res?.setHeader("X-RateLimit-Reset", String(verdict.reset));
-		event.node?.res?.setHeader("Retry-After", String(retryAfterSeconds));
+		for (const [name, value] of Object.entries(headers)) {
+			event.node?.res?.setHeader(name, value);
+		}
 
 		throw createError({
 			statusCode: 429,
 			statusMessage: "Too Many Requests",
 			message: `Please try again later. Reset time: ${getRateLimitReset(verdict.reset)}`,
 		});
+	}
+
+	if (verdict.rateLimit) {
+		const headers = buildRateLimitHeaders({
+			limit: verdict.rateLimit.limit,
+			remaining: verdict.rateLimit.remaining,
+			reset: verdict.rateLimit.reset,
+			windowSeconds: verdict.rateLimit.windowSeconds,
+		});
+		for (const [name, value] of Object.entries(headers)) {
+			event.node?.res?.setHeader(name, value);
+		}
 	}
 
 	return handleShortLinkRedirect(event, code);

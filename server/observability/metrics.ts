@@ -15,11 +15,12 @@
  */
 
 /**
- * Lightweight in-process observability metrics (counters + bounded latency ring).
+ * Lightweight in-process observability metrics (counters + bounded latency rings).
  *
  * Tracks redirect SLO percentiles (p50/p95/p99), L1/L2/negative cache hit ratios,
- * single-flight coalescing, DB fallback/errors, code-gen collision retries, and
- * async analytics buffer health.
+ * single-flight coalescing, DB fallback/errors, code-gen collision retries,
+ * async analytics buffer health, and dedicated rate-limiter observability
+ * (measured separately from the APIs it protects).
  */
 
 const LATENCY_RING_SIZE = 1024;
@@ -29,6 +30,19 @@ export interface LatencyPercentiles {
 	readonly p95: number;
 	readonly p99: number;
 	readonly samples: number;
+}
+
+export interface RateLimiterMetricsSnapshot {
+	readonly evaluated: number;
+	readonly allowed: number;
+	readonly limited429: number;
+	readonly banned403: number;
+	readonly limitedByPolicy: Record<string, number>;
+	readonly storeErrors: number;
+	readonly storeTimeouts: number;
+	readonly circuitOpenTrips: number;
+	readonly localFallbackHits: number;
+	readonly evalLatencyMs: LatencyPercentiles;
 }
 
 export interface MetricsSnapshot {
@@ -67,6 +81,27 @@ export interface MetricsSnapshot {
 		readonly dropped: number;
 		readonly flushErrors: number;
 	};
+	readonly rateLimiter: RateLimiterMetricsSnapshot;
+}
+
+function computeRingPercentiles(
+	ring: Float64Array,
+	count: number,
+): LatencyPercentiles {
+	if (count === 0) {
+		return { p50: 0, p95: 0, p99: 0, samples: 0 };
+	}
+	const sorted = Float64Array.from(ring.subarray(0, count)).sort();
+	const pick = (q: number): number => {
+		const idx = Math.min(count - 1, Math.max(0, Math.ceil(q * count) - 1));
+		return Number((sorted[idx] ?? 0).toFixed(2));
+	};
+	return {
+		p50: pick(0.5),
+		p95: pick(0.95),
+		p99: pick(0.99),
+		samples: count,
+	};
 }
 
 class MetricsRegistry {
@@ -74,6 +109,10 @@ class MetricsRegistry {
 	private readonly latencies = new Float64Array(LATENCY_RING_SIZE);
 	private latencyCount = 0;
 	private latencyIndex = 0;
+
+	private readonly rlLatencies = new Float64Array(LATENCY_RING_SIZE);
+	private rlLatencyCount = 0;
+	private rlLatencyIndex = 0;
 
 	public redirectsTotal = 0;
 	public status302 = 0;
@@ -103,8 +142,19 @@ class MetricsRegistry {
 	public analyticsDropped = 0;
 	public analyticsFlushErrors = 0;
 
+	public rateLimitEvaluated = 0;
+	public rateLimitAllowed = 0;
+	public rateLimitLimited429 = 0;
+	public rateLimitBanned403 = 0;
+	public rateLimitStoreErrors = 0;
+	public rateLimitStoreTimeouts = 0;
+	public rateLimitCircuitOpenTrips = 0;
+	public rateLimitLocalFallbackHits = 0;
+	private readonly rateLimitByPolicy = new Map<string, number>();
+
 	recordRedirectLatency(durationMs: number): void {
-		const clamped = Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : 0;
+		const clamped =
+			Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : 0;
 		this.latencies[this.latencyIndex] = clamped;
 		this.latencyIndex = (this.latencyIndex + 1) % LATENCY_RING_SIZE;
 		if (this.latencyCount < LATENCY_RING_SIZE) {
@@ -112,28 +162,33 @@ class MetricsRegistry {
 		}
 	}
 
-	private computeLatencyPercentiles(): LatencyPercentiles {
-		const count = this.latencyCount;
-		if (count === 0) {
-			return { p50: 0, p95: 0, p99: 0, samples: 0 };
+	recordRateLimitEvalLatency(durationMs: number): void {
+		const clamped =
+			Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : 0;
+		this.rlLatencies[this.rlLatencyIndex] = clamped;
+		this.rlLatencyIndex = (this.rlLatencyIndex + 1) % LATENCY_RING_SIZE;
+		if (this.rlLatencyCount < LATENCY_RING_SIZE) {
+			this.rlLatencyCount += 1;
 		}
-		const sorted = Float64Array.from(this.latencies.subarray(0, count)).sort();
-		const pick = (q: number): number => {
-			const idx = Math.min(count - 1, Math.max(0, Math.ceil(q * count) - 1));
-			return Number((sorted[idx] ?? 0).toFixed(2));
-		};
-		return {
-			p50: pick(0.5),
-			p95: pick(0.95),
-			p99: pick(0.99),
-			samples: count,
-		};
+	}
+
+	recordRateLimit429(policy: string): void {
+		this.rateLimitLimited429 += 1;
+		this.rateLimitByPolicy.set(
+			policy,
+			(this.rateLimitByPolicy.get(policy) ?? 0) + 1,
+		);
 	}
 
 	snapshot(): MetricsSnapshot {
 		const hits = this.l1Hits + this.l2Hits + this.negativeHits;
 		const lookups = hits + this.cacheMisses;
 		const hitRatio = lookups > 0 ? Number((hits / lookups).toFixed(4)) : 0;
+
+		const limitedByPolicy: Record<string, number> = {};
+		for (const [k, v] of this.rateLimitByPolicy.entries()) {
+			limitedByPolicy[k] = v;
+		}
 
 		return {
 			uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
@@ -144,7 +199,7 @@ class MetricsRegistry {
 				status404: this.status404,
 				status410: this.status410,
 				status503: this.status503,
-				latencyMs: this.computeLatencyPercentiles(),
+				latencyMs: computeRingPercentiles(this.latencies, this.latencyCount),
 			},
 			cache: {
 				l1Hits: this.l1Hits,
@@ -171,6 +226,21 @@ class MetricsRegistry {
 				dropped: this.analyticsDropped,
 				flushErrors: this.analyticsFlushErrors,
 			},
+			rateLimiter: {
+				evaluated: this.rateLimitEvaluated,
+				allowed: this.rateLimitAllowed,
+				limited429: this.rateLimitLimited429,
+				banned403: this.rateLimitBanned403,
+				limitedByPolicy,
+				storeErrors: this.rateLimitStoreErrors,
+				storeTimeouts: this.rateLimitStoreTimeouts,
+				circuitOpenTrips: this.rateLimitCircuitOpenTrips,
+				localFallbackHits: this.rateLimitLocalFallbackHits,
+				evalLatencyMs: computeRingPercentiles(
+					this.rlLatencies,
+					this.rlLatencyCount,
+				),
+			},
 		};
 	}
 
@@ -179,6 +249,9 @@ class MetricsRegistry {
 		this.latencies.fill(0);
 		this.latencyCount = 0;
 		this.latencyIndex = 0;
+		this.rlLatencies.fill(0);
+		this.rlLatencyCount = 0;
+		this.rlLatencyIndex = 0;
 		this.redirectsTotal = 0;
 		this.status302 = 0;
 		this.status403 = 0;
@@ -203,6 +276,15 @@ class MetricsRegistry {
 		this.analyticsFlushed = 0;
 		this.analyticsDropped = 0;
 		this.analyticsFlushErrors = 0;
+		this.rateLimitEvaluated = 0;
+		this.rateLimitAllowed = 0;
+		this.rateLimitLimited429 = 0;
+		this.rateLimitBanned403 = 0;
+		this.rateLimitStoreErrors = 0;
+		this.rateLimitStoreTimeouts = 0;
+		this.rateLimitCircuitOpenTrips = 0;
+		this.rateLimitLocalFallbackHits = 0;
+		this.rateLimitByPolicy.clear();
 	}
 }
 
