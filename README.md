@@ -1,80 +1,63 @@
-# LinkShort
+# Links — `links.mikeodnis.dev`
 
-Secure, type-safe URL shortening with URL verification, authentication, analytics, and a
-Progressive Web App (PWA) experience.
+High-throughput, security-verified URL shortener and privacy-first click analytics platform built with **Nuxt 4**, **Nitro**, **Effect v4**, **Hasura GraphQL**, and **Upstash Redis**.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/WomB0ComB0/link-shortener/ci.yml?branch=main&label=CI)](https://github.com/WomB0ComB0/link-shortener/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/WomB0ComB0/link-shortener/ci.yml?branch=master&label=CI)](https://github.com/WomB0ComB0/link-shortener/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/WomB0ComB0/link-shortener)](https://github.com/WomB0ComB0/link-shortener/releases)
 [![License](https://img.shields.io/github/license/WomB0ComB0/link-shortener)](LICENSE)
 
 ## Features
 
-- Short links with optional custom aliases and expiration dates.
-- Anonymous creation protected by a master password, plus authenticated link management.
-- Signed session tokens using `JWT_SECRET`.
-- Click analytics including user agent, referrer, IP, country, and city.
-- 9-stage URL security & OSINT verification covering syntax/SSRF, DNS, SSL/TLS, redirect chains, phishing heuristics, malware, Cloudflare/Quad9 threat DNSBLs, RDAP age/DNSSEC/CAA/DMARC, and HTTP security headers/HTML cloaking.
-- Redis-backed rate limiting, ban lists, and verification-result caching.
-- Hasura GraphQL over PostgreSQL for persistence.
-- API-key creation, masking, and revocation.
-- Responsive Nuxt UI with offline/PWA support.
+- **Single-hop `302 Found` redirects (`GET /{code}`)**: Intercepted directly at Nitro server middleware (`server/middleware/02-shortlink-redirect.ts`) with a multi-tier **L1 LRU + single-flight + Upstash Redis** cache-aside layer and `410 Gone` handling for expired/disabled links.
+- **9-stage synchronous URL security & OSINT pipeline** (inspired by `lissy93/web-check`): Runs on both link creation (`POST /api/links/create`) and edits (`PATCH /api/links/update`) covering syntax/SSRF, DNS private-IP & CNAME-cloaking guards, TLS/SSL certificates & cipher suites, multi-hop redirect chains, phishing/homograph heuristics, malware & Google Safe Browsing, zero-key threat-intel DNSBLs (**Cloudflare Security `1.1.1.2`**, **Quad9 `9.9.9.9`**, optional **Abuse.ch URLhaus**), **IANA RDAP** domain age/`serverHold` suspension + DNSSEC/CAA/SPF/DMARC, and **HTTP security headers (`A+`–`F`)**, drive-by executable `Content-Type`/`Content-Disposition` blocking, and bounded 16 KiB HTML `<meta http-equiv="refresh">` cloaking detection.
+- **Distributed API rate limiter**: Upstash Redis-backed per-route policies (**Token Bucket** for `redirect`/`api`, **Sliding Window** for `auth`/`create`/`verify`/`ai`/`slow`), identity-aware keying (`user:<id>`, hashed `apikey:<sha256-16>`, or trusted proxy IP), bounded in-process weighted sliding-window fallback when Redis is degraded, standard **IETF `RateLimit-*` + `RateLimit-Policy`** + `Retry-After` headers, and dedicated limiter telemetry on `/api/health`.
+- **Unbiased short codes & atomic writes**: Cryptographically unbiased 7-character Base62 rejection sampling (legacy 6-char codes supported), atomic `INSERT` collision retries, custom aliases with reserved-route protection, and owner-authorized edits/deletions with immediate L1 + Redis cache invalidation.
+- **Privacy-first batched click analytics**: Non-blocking bounded in-memory buffer flushed in batches without storing raw IP addresses (`ip_address: null`), stripping referrer query strings and fragments.
+- **Authentication & scoped API keys**: Salted `scrypt` password hashing, signed HttpOnly session cookies / Bearer tokens, and SHA-256 hashed `sk_` developer API keys.
+- **Live Console UI, Dynamic OG & PWA**: Nuxt UI v4 + Tailwind CSS v4, dynamic Satori + `@resvg/resvg-js` `1200x630` OpenGraph cards (`/api/og`, `/opengraph-image`, `/twitter-image`), installable PWA with Web Share Target, and SEO/AEO/GEO endpoints (`/llms.txt`, `/llms-full.txt`, Schema.org JSON-LD).
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    Browser[Nuxt / PWA] --> Nitro[Nitro server]
-    Client[API client] --> Nitro
-    Nitro --> Auth[Auth middleware]
-    Auth --> Verify[URL verification]
-    Verify --> DNS[DNS and SSRF checks]
-    Verify --> TLS[SSL/TLS checks]
-    Verify --> Redirects[Redirect-chain checks]
-    Verify --> Threats[Phishing and malware checks]
+    Browser[Nuxt / PWA] --> Nitro[Nitro Server]
+    Client[API Client] --> Nitro
+    Nitro --> RL["Distributed Rate Limiter\n(Upstash Redis + Local Fallback)"]
+    RL --> Auth[Auth Middleware]
+    Auth --> Verify["9-Stage Security & OSINT Pipeline\n(SSRF Gate -> TLS/Redirects/DNSBL/RDAP -> HTTP/HTML)"]
+    Nitro --> Redirect["Single-Hop 302 Middleware\n(L1 LRU + Single-Flight + L2 Redis)"]
+    Redirect -.->|Async batch| Analytics[Click Buffer]
     Nitro --> Hasura[Hasura GraphQL]
     Hasura --> Postgres[(PostgreSQL)]
     Nitro --> Redis[(Upstash Redis)]
 ```
 
-The application is a Nuxt SSR/PWA frontend and a Nitro API in one deployable
-process. Hasura is the database API; the application does not connect directly to
-PostgreSQL at request time. Redis is used for rate-limit state, ban lists, and
-short-lived verification caching.
+### Link creation & edit flow
 
-### Link creation flow
+1. Request body is validated with **Effect v4 `Schema`** (`CreateShortLinkRequest` / `UpdateShortLinkRequest`).
+2. Caller is resolved from a session cookie/Bearer token, an active SHA-256 hashed `sk_` API key, or `x-master-password`.
+3. **Phase 1 (SSRF Gate)**: Local URL syntax, protocol, port, credential, and DNS private-IP / CNAME-cloaking validation run before opening any outbound socket.
+4. **Phase 2 (Parallel Inspection & OSINT)**: SSL/TLS, multi-hop redirect chain, phishing/homograph heuristics, Google Safe Browsing, Cloudflare Security DNS (`1.1.1.2`) + Quad9 (`9.9.9.9`) + optional Abuse.ch URLhaus, and IANA RDAP age/suspension + DNSSEC/CAA/SPF/DMARC.
+5. **Phase 3 (Final Target Content & Cloaking)**: Bounded `16 KiB` SSRF-safe GET inspects security headers (`A+`–`F`), blocks executable `Content-Type`/`Content-Disposition` drive-by downloads, and catches `<meta http-equiv="refresh">` cloaked redirects—re-scanning downstream targets for phishing, malware, and DNSBL hits.
+6. Verification fails closed (`503`) on unexpected pipeline failures and blocks high/critical risk (`403`).
+7. On creation, random 7-char Base62 codes insert atomically with collision retries; on edit/delete, DB writes happen first followed by immediate L1 + Redis cache invalidation.
 
-1. The request body is decoded with `CreateShortLinkRequest`.
-2. The caller is resolved from a session token, an active `sk_` API key, or the
-   master-password header.
-3. Unless an explicit internal bypass is used, the URL enters the verification
-   pipeline.
-4. The pipeline validates the URL and checks DNS before opening outbound HTTP/TLS
-   connections. This is the SSRF gate.
-5. Redirects are inspected manually with a hop limit, loop detection, private-IP
-   protection, and HTTPS-to-HTTP downgrade detection.
-6. DNS, SSL, phishing, and malware results determine the risk level.
-7. The alias/code is checked for collisions, then the link is inserted in Hasura.
+### Redirect hot path
 
-Verification failures are fail-closed for critical risks. High-risk links are
-blocked for anonymous callers; authenticated callers receive the risk result and
-may proceed according to the endpoint policy.
-
-### Redirect flow
-
-`GET /<short-code>` loads the active link, rejects disabled or expired links, records
-click metadata asynchronously, and returns a `302` redirect. Click recording is
-deliberately non-blocking so an analytics failure does not prevent a valid redirect.
+`GET /<short-code>` resolves through L1 LRU (`2,000` keys, `3s` TTL) → per-key single-flight coalescing → Upstash Redis (`short:<code>`, negative-cached `404` for `60s`, circuit-broken after 2 failures) → Hasura GraphQL. Every redirect re-checks active/expiry status (`410 Gone`) and CPU-only SSRF/scheme safety, returns `302 Found` (`Cache-Control: private, max-age=90`, `Referrer-Policy: no-referrer`), and enqueues privacy-preserving click metadata asynchronously without blocking the redirect.
 
 ## Stack
 
 | Area | Technology |
 | --- | --- |
 | Application | Nuxt 4, Vue 3, Nitro |
-| Styling | Tailwind CSS 4, Nuxt UI |
-| Validation | TypeScript, Effect Schema |
-| Persistence | PostgreSQL, Hasura GraphQL |
-| Rate limiting/cache | Upstash Redis |
+| Styling | Tailwind CSS 4, Nuxt UI v4 |
+| Runtime & Validation | TypeScript, **Effect v4** (`effect` + `effect/http`) |
+| Persistence | PostgreSQL, Hasura GraphQL (`@urql/core`) |
+| Rate Limiting & Cache | Upstash Redis (`@upstash/ratelimit` + L1 LRU + local sliding-window fallback) |
+| OpenGraph & PWA | Satori, `@resvg/resvg-js`, `@vite-pwa/nuxt` |
 | Testing | Vitest, Playwright |
-| Package manager | Bun |
+| Package Manager | Bun `1.4+` |
 
 ## Quick start
 
@@ -98,73 +81,60 @@ bun run dev
 
 The development server runs at <http://localhost:3000>.
 
-Apply the SQL migrations in `migrations/` to the PostgreSQL database before using
-authenticated features. The Hasura metadata/schema must expose the application tables.
-
-The migrations create these tables:
+Apply the SQL migrations in `migrations/` (including `005_optimize_indexes_and_status.sql`) to PostgreSQL before using authenticated features.
 
 | Table | Purpose |
 | --- | --- |
 | `users` | Account identity and profile data |
-| `short_links` | Destination URLs, aliases, ownership, and expiry |
-| `clicks` | Redirect analytics |
-| `api_keys` | Hashed/API-key metadata and lifecycle state |
-
-`short_links.user_id` uses `ON DELETE SET NULL`; click rows cascade when a short
-link is deleted, and API keys cascade when their user is deleted.
+| `short_links` | Destination URLs, aliases, ownership, status, and expiry |
+| `clicks` | Privacy-preserving batched redirect analytics (`ip_address: null`) |
+| `api_keys` | SHA-256 hashed API-key metadata and lifecycle state |
 
 ## Configuration
 
-The complete template is in `.env.example`. The most important variables are:
+The complete template is in [`.env.example`](./.env.example). Key variables:
 
 | Variable | Purpose |
 | --- | --- |
 | `HASURA_GRAPHQL_ENDPOINT` | Hasura GraphQL URL |
 | `HASURA_GRAPHQL_ADMIN_SECRET` | Server-side Hasura admin secret |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL (rate limiting, bans, L2 redirect cache) |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
-| `MASTER_PASSWORD_HASH` | SHA-256 hash used for anonymous link creation |
+| `MASTER_PASSWORD_HASH` | SHA-256 hash used for master-password link creation |
 | `JWT_SECRET` | Secret used to sign and verify session tokens |
-| `GOOGLE_SAFE_BROWSING_API_KEY` | Optional malware scanning integration |
-| `URLHAUS_AUTH_KEY` | Optional Abuse.ch URLhaus Auth-Key for URL-level malware lookups |
-| `ADMIN_BYPASS_SECRET` | Optional server-side verification bypass secret |
+| `GOOGLE_SAFE_BROWSING_API_KEY` | Optional Google Safe Browsing v4 malware/phishing scanning |
+| `URLHAUS_AUTH_KEY` | Optional Abuse.ch URLhaus Auth-Key (complements zero-key Cloudflare/Quad9 DNSBLs) |
+| `SECURITY_REQUIRE_SAFE_BROWSING` | Optional (`true`) to fail closed when Safe Browsing is unreachable |
+| `ADMIN_BYPASS_SECRET` | Optional server-side verification bypass secret (`>= 16` chars, constant-time verified) |
 
 Never commit `.env` or production secrets.
 
 ## HTTP API
 
-### Authentication
+### Core Endpoints
 
-```text
-POST /api/auth/register
-POST /api/auth/login
-GET  /api/auth/me
-```
+| Method & Path | Auth | Rate Limit Tier | Description |
+| --- | --- | --- | --- |
+| `GET /{code}` | Public | `redirect` (100/60s token bucket) | Single-hop `302 Found` redirect (`404` missing, `410` disabled/expired) |
+| `POST /api/links/create` | Session / `sk_` key / Master pwd | `create` (10/60s sliding window) | Run 9-stage verification and create short link |
+| `PATCH /api/links/update` | Owner session / `sk_` key / Master pwd | `create` (10/60s sliding window) | Edit destination (re-verified), active flag, or expiry + invalidate cache |
+| `DELETE /api/links/delete` | Owner session / `sk_` key / Master pwd | `api` (30/60s token bucket) | Delete link + invalidate cache |
+| `GET /api/links/me`, `/api/links/public` | Session / Public | `api` (30/60s token bucket) | List user or public links |
+| `GET /api/links/analytics?shortLinkId={uuid}` | Owner / Master pwd | `ai` (20/24h sliding window) | Inspect batched click analytics |
+| `GET /api/security/verify?url={url}` | Public | `verify` (15/60s sliding window) | Run 9-stage URL security & OSINT report |
+| `POST /api/auth/register`, `/login`, `/logout`, `GET /me` | Public / Session | `auth` (5/10s sliding window) | Account lifecycle & HttpOnly session cookies |
+| `POST /api/keys/create`, `GET /list`, `POST /revoke` | Interactive session only | `api` (30/60s token bucket) | Manage SHA-256 hashed `sk_` API keys |
+| `GET /api/health` | Public | Exempt | Hasura/Redis readiness, redirect SLO (`p50`/`p95`/`p99`), cache hit ratio, & rate-limiter metrics |
+| `GET /api/og`, `/opengraph-image`, `/twitter-image` | Public | Exempt | Dynamic `1200x630` Live Console OpenGraph PNG cards |
 
-Registration accepts `email`, `password`, and an optional `displayName`. Login and
-registration return a signed session token. Send it on protected requests:
+All rate-limited responses emit both IETF draft headers (`RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`, `RateLimit-Policy`) and legacy `X-RateLimit-*` headers, plus RFC 9110 `Retry-After` on `429`.
 
-```http
-Authorization: Bearer <session-token>
-```
-
-### Links
-
-```text
-POST /api/links/create
-GET  /api/links/me
-GET  /api/links/public
-GET  /api/links/analytics?shortLinkId=<uuid>
-GET  /api/security/verify?url=<url>
-GET  /<short-code>
-```
-
-Create a link with:
+### Create a link example
 
 ```bash
-curl -X POST http://localhost:3000/api/links/create \
+curl -X POST https://links.mikeodnis.dev/api/links/create \
   -H 'Content-Type: application/json' \
-  -H 'x-master-password: YOUR_MASTER_PASSWORD' \
+  -H 'Authorization: Bearer <session-or-sk-api-key>' \
   -d '{
     "originalUrl": "https://example.com/a-long-path",
     "customAlias": "example",
@@ -172,107 +142,41 @@ curl -X POST http://localhost:3000/api/links/create \
   }'
 ```
 
-Authenticated requests may use the session token instead of `x-master-password`.
-The redirect route is the short code itself, for example
-`http://localhost:3000/example`.
-
-### Authentication matrix
-
-| Route family | Session token | `sk_` API key | Master password |
-| --- | :---: | :---: | :---: |
-| `/api/links/create` | Yes | Yes | Yes |
-| `/api/links/analytics` | Yes | Yes | Yes |
-| `/api/keys/*` | Yes | No | Explicitly rejected unless valid fallback behavior is configured |
-
-Session tokens are signed server-side and expire after seven days. API keys are
-scoped to the owning account and are not permitted to create or revoke other API
-keys.
-
-### API keys
-
-```text
-POST /api/keys/create
-GET  /api/keys/list
-POST /api/keys/revoke
-```
-
-These routes require authentication middleware. API keys are only shown in full when
-created; subsequent listings mask all but the final eight characters.
-
-## Development
-
-Useful commands:
+## Development & Releases
 
 ```bash
 bun run dev
 bun run build
-bun run test -- --run
+bun run test
 bun run test:e2e -- --project=chromium
-bun audit --production --audit-level=high
+bun audit --audit-level=high
 ```
 
-The server test suite covers API handlers, middleware, authentication, schemas,
-link services, URL security checks, DNS/SSL checks, and Redis-backed helpers.
-Playwright covers landing-page behavior, authentication, link creation, offline
-recovery, success flows, and error flows.
+### Continuous Integration & SemVer Releases
 
-### Continuous integration
+- **CI on push / PR (`master`)**: Frozen Bun install, Vitest server/security suite, production Nuxt/Nitro build, Chromium Playwright E2E, `bun audit --audit-level=high`, CodeQL, dependency review, bundle analysis, and weekly Dependabot updates.
+- **SemVer Releases (`.github/workflows/release.yml`)**: Pushing an annotated SemVer tag (`git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z`) or triggering `workflow_dispatch` runs tests + audit + Nitro build, packages `link-shortener-vX.Y.Z.tar.gz` + `SHA256SUMS.txt`, and publishes a GitHub Release with categorized notes ([`.github/release.yml`](./.github/release.yml)). Audited with `zizmor` (0 findings).
 
-Pull requests and pushes to `master` run:
-
-- Frozen Bun dependency installation.
-- Vitest unit/server tests.
-- A production Nuxt build.
-- Chromium Playwright tests.
-- Production dependency auditing at high/critical severity.
-- CodeQL, dependency review, bundle analysis, and Dependabot automation.
-
-The local Playwright configuration defines Chromium, Firefox, WebKit, mobile, and
-branded-browser projects. CI currently installs and runs Chromium only; install the
-other browser binaries locally before running those projects.
-
-## Deployment notes
-
-The production artifact is the Nuxt Node server generated by `bun run build`.
-Deploy it with the same runtime environment variables used locally and expose the
-server's port 3000. Provision PostgreSQL/Hasura and Redis separately, apply every
-migration in order, and keep `HASURA_GRAPHQL_ADMIN_SECRET`, `UPSTASH_REDIS_REST_TOKEN`,
-`JWT_SECRET`, `MASTER_PASSWORD_HASH`, and `ADMIN_BYPASS_SECRET` private.
-
-Do not enable `ADMIN_BYPASS_SECRET` for ordinary public clients. It is intended for
-controlled server-side operations and bypasses URL verification checks.
-
-## Troubleshooting
-
-| Symptom | Check |
-| --- | --- |
-| `401 Authentication required` | Confirm the `Authorization: Bearer ...` token is present and `JWT_SECRET` matches the issuer environment. |
-| `403 Invalid master password` | Recompute `MASTER_PASSWORD_HASH` as a SHA-256 hex digest and ensure the header is `x-master-password`. |
-| Hasura errors | Check endpoint/admin secret, database connectivity, table tracking, and migration order. |
-| Redis errors | Check both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`; rate limiting and ban-list operations depend on them. |
-| Playwright browser missing | Run `bunx playwright install --with-deps chromium` for the CI-equivalent project, or install the requested browser project. |
-| Verification is slow | Inspect DNS, TLS, and redirect targets; the pipeline applies per-check and total timeouts and caches completed results. |
-
-## Project layout
+## Project Layout
 
 ```text
-app/                 Nuxt pages, components, composables, and styles
-server/api/          Nitro API handlers
-server/security/     URL, DNS, SSL, phishing, and malware checks
-server/middleware/   Authentication and rate limiting
-server/services/     Link-domain services
-server/utils/        Auth, validation, and GraphQL helpers
-lib/                 Shared fetcher, Redis, ban-list, IP, and GraphQL utilities
-migrations/          PostgreSQL schema migrations
-src/e2e/             Playwright browser tests
-.github/workflows/   CI, security, dependency, build, and E2E workflows
+app/                 Nuxt 4 pages, Live Console UI components, composables, SEO/PWA
+server/api/          Nitro API handlers (links, auth, keys, security/verify, health, og)
+server/security/     9-stage URL, DNS, SSL, redirect, phishing, malware, DNSBL, RDAP & HTTP checkers
+server/cache/        Multi-tier L1 LRU + single-flight + Upstash Redis redirect cache
+server/analytics/    Non-blocking privacy-preserving batched click buffer
+server/observability/ In-process SLO, cache, and rate-limiter metrics registry
+server/middleware/   Security headers, request ID, single-hop redirect, auth, and distributed rate limiting
+server/schemas/      Effect v4 Schema definitions
+lib/                 Effect v4 fetcher, distributed api-guard, local fallback limiter, Redis & GraphQL helpers
+migrations/          PostgreSQL schema & index migrations
+public/              PWA icons, manifest, robots.txt, sitemap.xml, llms.txt & llms-full.txt
+.github/workflows/   CI, Security, CodeQL, Bundle Analysis, Playwright, and SemVer Release workflows
 ```
 
 ## Security
 
-Report vulnerabilities privately through GitHub security advisories rather than
-opening a public issue. Do not include credentials, tokens, or private URLs in bug
-reports.
+Report vulnerabilities privately through GitHub security advisories rather than opening a public issue. Do not include credentials, tokens, or private URLs in bug reports.
 
 ## License
 
