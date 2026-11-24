@@ -39,15 +39,8 @@ const bytesOf = (buffer: Uint8Array): ArrayBuffer =>
 
 async function readFromNitroStorage(filename: string): Promise<Uint8Array | null> {
 	try {
-		const storageFn = (
-			globalThis as {
-				useStorage?: (
-					base?: string,
-				) => { getItemRaw: (key: string) => Promise<unknown> };
-			}
-		).useStorage;
-		if (typeof storageFn !== "function") return null;
-		const raw = await storageFn("assets:og-fonts").getItemRaw(filename);
+		const { useStorage } = await import("nitropack/runtime");
+		const raw = await useStorage("assets:og-fonts").getItemRaw(filename);
 		if (raw instanceof Uint8Array) return raw;
 		if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
 		return null;
