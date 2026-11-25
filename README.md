@@ -1,4 +1,4 @@
-# Links — `links.mikeodnis.dev`
+# Links (`links.mikeodnis.dev`)
 
 High-throughput, security-verified URL shortener and privacy-first click analytics platform built with **Nuxt 4**, **Nitro**, **Effect v4**, **Hasura GraphQL**, and **Upstash Redis**.
 
@@ -38,7 +38,7 @@ flowchart LR
 2. Caller is resolved from a session cookie/Bearer token, an active SHA-256 hashed `sk_` API key, or `x-master-password`.
 3. **Phase 1 (SSRF Gate)**: Local URL syntax, protocol, port, credential, and DNS private-IP / CNAME-cloaking validation run before opening any outbound socket.
 4. **Phase 2 (Parallel Inspection & OSINT)**: SSL/TLS, multi-hop redirect chain, phishing/homograph heuristics, Google Safe Browsing, Cloudflare Security DNS (`1.1.1.2`) + Quad9 (`9.9.9.9`) + optional Abuse.ch URLhaus, and IANA RDAP age/suspension + DNSSEC/CAA/SPF/DMARC.
-5. **Phase 3 (Final Target Content & Cloaking)**: Bounded `16 KiB` SSRF-safe GET inspects security headers (`A+`–`F`), blocks executable `Content-Type`/`Content-Disposition` drive-by downloads, and catches `<meta http-equiv="refresh">` cloaked redirects—re-scanning downstream targets for phishing, malware, and DNSBL hits.
+5. **Phase 3 (Final Target Content & Cloaking)**: Bounded `16 KiB` SSRF-safe GET inspects security headers (`A+`–`F`), blocks executable `Content-Type`/`Content-Disposition` drive-by downloads, and catches `<meta http-equiv="refresh">` cloaked redirects, re-scanning downstream targets for phishing, malware, and DNSBL hits.
 6. Verification fails closed (`503`) on unexpected pipeline failures and blocks high/critical risk (`403`).
 7. On creation, random 7-char Base62 codes insert atomically with collision retries; on edit/delete, DB writes happen first followed by immediate L1 + Redis cache invalidation.
 

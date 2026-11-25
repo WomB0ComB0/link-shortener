@@ -373,7 +373,7 @@ export async function checkDomainIntel(
 		if (rdap.serverHold) {
 			isSuspended = true;
 			errors.push(
-				`Domain ${domain} is suspended by registry (EPP serverHold — often abuse/phishing takedown)`,
+				`Domain ${domain} is suspended by registry (EPP serverHold, often abuse/phishing takedown)`,
 			);
 		} else if (rdap.clientHold) {
 			isSuspended = true;
@@ -386,7 +386,7 @@ export async function checkDomainIntel(
 			if (domainAgeDays < NEW_DOMAIN_HIGH_RISK_DAYS) {
 				isNewlyRegistered = true;
 				warnings.push(
-					`Domain was registered ${domainAgeDays} day(s) ago (< 7 days — elevated phishing risk)`,
+					`Domain was registered ${domainAgeDays} day(s) ago (< 7 days, elevated phishing risk)`,
 				);
 			} else if (domainAgeDays < NEW_DOMAIN_WARN_DAYS) {
 				isNewlyRegistered = true;

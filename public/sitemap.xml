@@ -8,7 +8,7 @@
     <priority>1.0</priority>
     <image:image>
       <image:loc>https://links.mikeodnis.dev/opengraph-image</image:loc>
-      <image:title>Links — Mike Odnis</image:title>
+      <image:title>Links - Mike Odnis</image:title>
       <image:caption>Fast, security-verified short links with click analytics on links.mikeodnis.dev.</image:caption>
     </image:image>
   </url>
@@ -20,7 +20,7 @@
     <priority>0.9</priority>
     <image:image>
       <image:loc>https://links.mikeodnis.dev/api/og?title=Create+Short+Link&amp;description=Shorten+and+security-verify+a+destination+URL+with+6-stage+phishing%2C+malware%2C+SSL%2C+and+DNS+checks.</image:loc>
-      <image:title>Create Short Link — Links</image:title>
+      <image:title>Create Short Link - Links</image:title>
     </image:image>
   </url>
 

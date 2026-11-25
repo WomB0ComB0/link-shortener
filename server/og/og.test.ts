@@ -50,7 +50,7 @@ describe("Dynamic OpenGraph cards & Live Console PWA manifest", () => {
 	it("builds canonical OG image URLs for site and subpages", () => {
 		expect(
 			buildOgImageUrl({
-				title: "Links — Mike Odnis",
+				title: "Links - Mike Odnis",
 				description: SITE_TAGLINE,
 				useSiteCard: true,
 			}),

@@ -37,7 +37,7 @@ describe("SEO / AEO / GEO artifacts & Schema.org structured data", () => {
 		const llms = readFileSync(join(root, "public/llms.txt"), "utf8");
 		const llmsFull = readFileSync(join(root, "public/llms-full.txt"), "utf8");
 
-		expect(llms.startsWith("# Links — Mike Odnis\n\n> ")).toBe(true);
+		expect(llms.startsWith("# Links - Mike Odnis\n\n> ")).toBe(true);
 		expect(llms).toContain("https://links.mikeodnis.dev/llms-full.txt");
 		expect(llms).not.toContain("Nuxt 3");
 		expect(llms).not.toContain("Proprietary");

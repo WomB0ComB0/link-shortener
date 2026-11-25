@@ -22,7 +22,7 @@ export const SITE_TWITTER_CARD_PATH = "/twitter-image";
 export const PAGE_CARD_PATH = "/api/og";
 
 export const SITE_TITLE = "Links";
-export const SITE_FULL_NAME = "Links — Mike Odnis";
+export const SITE_FULL_NAME = "Links - Mike Odnis";
 export const SITE_ROLE = "Verified URL shortener";
 export const SITE_HOST = "links.mikeodnis.dev";
 export const SITE_URL = "https://links.mikeodnis.dev";

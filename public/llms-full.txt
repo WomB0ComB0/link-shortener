@@ -1,4 +1,4 @@
-# Links — Mike Odnis (Full Technical Reference)
+# Links - Mike Odnis (Full Technical Reference)
 
 > High-throughput, security-verified URL shortener at https://links.mikeodnis.dev. Built by Mike Odnis (https://mikeodnis.dev) and licensed under Apache-2.0.
 
@@ -66,7 +66,7 @@
 
 ## Maintainer & Entity Links
 
-- **Author**: Mike Odnis — https://mikeodnis.dev
+- **Author**: Mike Odnis (https://mikeodnis.dev)
 - **GitHub**: https://github.com/WomB0ComB0/link-shortener
 - **Contact**: mike@mikeodnis.dev
 - **License**: Apache License 2.0

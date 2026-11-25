@@ -19,7 +19,7 @@ import { app } from "./app/constants/index";
 
 const DEFAULT_OG_IMAGE = `${app.url}/opengraph-image`;
 const DEFAULT_TWITTER_IMAGE = `${app.url}/twitter-image`;
-const DEFAULT_OG_ALT = `${app.name} — ${app.description}`;
+const DEFAULT_OG_ALT = `${app.name}: ${app.description}`;
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({

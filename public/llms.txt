@@ -1,4 +1,4 @@
-# Links — Mike Odnis
+# Links - Mike Odnis
 
 > High-throughput, security-verified URL shortener and click analytics platform at https://links.mikeodnis.dev, part of Mike Odnis's Live Console ecosystem (mikeodnis.dev).
 

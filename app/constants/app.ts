@@ -138,7 +138,7 @@ type App = {
 };
 
 export const app: App = {
-	name: "Links — Mike Odnis",
+	name: "Links - Mike Odnis",
 	shortName: "Links",
 	host: "links.mikeodnis.dev",
 	url: "https://links.mikeodnis.dev",
@@ -150,7 +150,7 @@ export const app: App = {
 	manifest: {
 		id: "/",
 		scope: "/",
-		name: "Links — Mike Odnis",
+		name: "Links - Mike Odnis",
 		short_name: "Links",
 		description:
 			"Fast, security-verified short links with click analytics on links.mikeodnis.dev.",

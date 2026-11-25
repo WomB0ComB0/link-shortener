@@ -1,4 +1,4 @@
-# robots.txt for Links — Mike Odnis
+# robots.txt for Links - Mike Odnis
 # https://links.mikeodnis.dev
 
 # Default rules for search, social preview, and answer-engine crawlers

@@ -62,7 +62,7 @@ export function usePageSeo(options: PageSeoOptions): void {
 	const fullTitle =
 		options.title === app.name || options.title.includes("Links")
 			? options.title
-			: `${options.title} — ${app.shortName}`;
+			: `${options.title} - ${app.shortName}`;
 	const normalizedPath = options.path
 		? options.path.startsWith("/")
 			? options.path

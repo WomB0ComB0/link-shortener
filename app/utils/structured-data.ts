@@ -31,7 +31,7 @@ export const SITE_FAQS: readonly FaqEntry[] = [
 	{
 		question: "How does Links verify destination URLs before shortening?",
 		answer:
-			"Every URL submitted to links.mikeodnis.dev runs through a 9-stage synchronous security & OSINT pipeline checking syntax and SSRF/private-IP restrictions, DNS resolution, TLS/SSL certificates, redirect chains, phishing/homograph heuristics, malware & zero-key threat-intelligence DNSBLs (Cloudflare Security, Quad9), RDAP domain age/suspension & DNSSEC/CAA/DMARC posture, and HTTP security headers with drive-by download and HTML meta-refresh cloaking protection—both at creation time and whenever a destination URL is edited.",
+			"Every URL submitted to links.mikeodnis.dev runs through a 9-stage synchronous security & OSINT pipeline checking syntax and SSRF/private-IP restrictions, DNS resolution, TLS/SSL certificates, redirect chains, phishing/homograph heuristics, malware & zero-key threat-intelligence DNSBLs (Cloudflare Security, Quad9), RDAP domain age/suspension & DNSSEC/CAA/DMARC posture, and HTTP security headers with drive-by download and HTML meta-refresh cloaking protection, both at creation time and whenever a destination URL is edited.",
 	},
 	{
 		question: "Why does Links use HTTP 302 redirects instead of 301?",
